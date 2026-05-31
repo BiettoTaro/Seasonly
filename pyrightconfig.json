@@ -1,0 +1,19 @@
+{
+  "include": ["backend"],
+  "exclude": [
+    ".venv",
+    ".uv-cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "**/__pycache__"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "backend",
+      "extraPaths": ["backend"]
+    }
+  ],
+  "pythonVersion": "3.12",
+  "venvPath": ".",
+  "venv": ".venv"
+}

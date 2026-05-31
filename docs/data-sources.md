@@ -2,6 +2,8 @@
 
 Track candidate datasets here before importing them into the app.
 
+Backend dataset registrations live in `backend/app/data/catalog.py`, with `DataKey` under `data_key/`, shared enums under `enums/`, and Pydantic data schemas under `schemas/`.
+
 For each source, record:
 
 - Dataset name.
@@ -15,9 +17,12 @@ For each source, record:
 
 ## Seasonal Produce
 
-Pending.
+Initial backend key: `eu_seasonal_produce`.
 
 ## Recipes
 
-Pending.
+Initial backend key: `eu_recipes`.
 
+## Recommendation Data
+
+Initial backend key: `recommendation_events`.

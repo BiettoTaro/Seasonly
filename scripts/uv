@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+set -eu
+
+PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+export UV_PYTHON="${PROJECT_ROOT}/.venv/bin/python"
+export UV_CACHE_DIR="${PROJECT_ROOT}/.uv-cache"
+if [ -n "${PYTHONPATH:-}" ]; then
+    export PYTHONPATH="${PROJECT_ROOT}/backend:${PYTHONPATH}"
+else
+    export PYTHONPATH="${PROJECT_ROOT}/backend"
+fi
+
+exec uv "$@"

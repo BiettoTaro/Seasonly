@@ -7,6 +7,7 @@ __pycache__/
 *.pyo
 .Python
 .venv/
+.uv-cache/
 venv/
 env/
 .env
@@ -49,4 +50,3 @@ Package.resolved
 # IDEs
 .idea/
 .vscode/
-

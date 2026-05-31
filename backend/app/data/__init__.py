@@ -1,0 +1,1 @@
+"""Dataset architecture for Seasonly."""

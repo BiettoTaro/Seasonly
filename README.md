@@ -24,35 +24,39 @@ The app will focus on seasonal produce in Europe, recipe data, authentication, v
 
 Prerequisites:
 
-- Python 3.12+
+- Python 3.12
 - Docker Desktop
 - uv
+
+This project is pinned to Python 3.12 through `.python-version`, `pyproject.toml`, and the local `./scripts/uv` wrapper. The wrapper also keeps uv's cache local to this repository.
 
 Create a virtual environment and install dependencies:
 
 ```bash
 uv venv
-uv sync --all-extras --dev
+./scripts/uv sync --all-extras --dev
 ```
 
 Run the API locally:
 
 ```bash
-uv run fastapi dev backend/app/main.py
+./scripts/uv run fastapi dev backend/app/main.py
 ```
 
 Run linting and formatting checks:
 
 ```bash
-uv run ruff check .
-uv run ruff format --check .
+./scripts/uv run ruff check .
+./scripts/uv run ruff format --check .
 ```
 
 Run tests:
 
 ```bash
-uv run pytest
+./scripts/uv run pytest
 ```
+
+If your shell has a global `UV_PYTHON` override for another project, use `./scripts/uv ...` in this repository. It keeps Seasonly on Python 3.12, uses a repo-local uv cache, and sets `PYTHONPATH=backend` without changing your global uv setup.
 
 ## Docker Development
 
@@ -74,6 +78,7 @@ The API will be available at `http://localhost:8000`.
 
 - Seasonal produce datasets for Europe.
 - Recipe datasets relevant to European ingredients and cuisine.
+- Data architecture starts with modular `data_key`, `enums`, `data_target`, and `data/schemas` packages in `backend/app/data/`.
 - Dataset provenance, licensing, and refresh notes should be documented in `docs/data-sources.md`.
 
 ## Planned Features
@@ -83,4 +88,3 @@ The API will be available at `http://localhost:8000`.
 - PostgreSQL persistence.
 - Recommendation system with machine learning.
 - Optional Cloudflare Tunnel support for device testing.
-
