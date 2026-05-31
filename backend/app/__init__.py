@@ -1,0 +1,1 @@
+"""Seasonly backend application package."""

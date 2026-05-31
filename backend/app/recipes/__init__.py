@@ -1,0 +1,1 @@
+"""Recipes domain package placeholder."""
