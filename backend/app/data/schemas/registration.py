@@ -1,9 +1,11 @@
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from typing import ClassVar
+
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from app.data.data_key import DataKey
 from app.data.enums import DataDomain
 from app.data.schemas.target import DataTarget
+
 
 class DataSourceMetadata(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
