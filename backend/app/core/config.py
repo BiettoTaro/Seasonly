@@ -21,6 +21,8 @@ class Settings(BaseSettings):
 
     auth_secret_key: str = "change-this-before-real-use"
     auth_access_token_expire_minutes: int = 30
+    auth_refresh_token_expire_days: int = 30
+    auth_password_reset_token_expire_minutes: int = 30
 
 
 settings = Settings()

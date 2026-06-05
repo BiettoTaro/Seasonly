@@ -1,8 +1,8 @@
 import pytest
 
-from app.data.catalog import get_data_registration, get_data_targets
 from app.data.data_key import DataKey
 from app.data.enums import DataTargetType
+from app.data.registry import get_data_registration, get_data_targets
 
 
 def test_data_key_targets_are_registered() -> None:

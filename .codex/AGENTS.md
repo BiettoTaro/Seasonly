@@ -25,10 +25,13 @@ Use this folder for project-specific assistant notes, skills, and repeatable wor
 
 - Keep data-facing definitions inside `backend/app/data/`, not inside domain packages such as `backend/app/users/`.
 - Data key enums live under `backend/app/data/data_key/`. If a domain needs its own key group, create a domain file there, for example `data_key/user.py`, and export it from `data_key/__init__.py`.
-- Data target registrations live under `backend/app/data/data_target/`. Domain-specific targets should use files such as `data_target/user.py`.
-- Data response schemas used by `DataSpec(type=...)` live under `backend/app/data/schemas/`, for example `schemas/user.py`.
+- Data target definitions live under `backend/app/data/data_target/`. Domain-specific targets should use files such as `data_target/user.py`, `data_target/produce.py`, or `data_target/recipes.py`.
+- Data source registrations live under `backend/app/data/data_source/`. Domain-specific registrations should use files such as `data_source/produce.py`, `data_source/recipes.py`, or `data_source/recommendations.py`.
+- The data registry lives in `backend/app/data/registry.py` and should only map `DataKey` values to imported `DataSourceRegistration` objects. Do not define inline `DataSourceRegistration(...)`, `DataSourceMetadata(...)`, or `DataTarget(...)` objects in the registry.
+- Data-catalog contracts used by `DataSpec(type=...)` live under `backend/app/data/contracts/`, for example `contracts/user.py`; do not create another generic `schemas` package under `backend/app/data/`.
+- API request/response schemas live under `backend/app/schemas/`, for example `backend/app/schemas/user.py` or `backend/app/schemas/auth.py`; do not place shared Pydantic API schemas inside domain packages such as `backend/app/users/`.
 - ORM persistence models belong under `backend/app/models/`; do not mix SQLAlchemy models into the data catalog packages.
-- Domain packages like `backend/app/users/` should contain user-domain services/routes only when needed, not data catalog keys, targets, or shared data schemas.
+- Domain packages like `backend/app/users/` should contain user-domain services/helpers only when needed, not data catalog keys, targets, or shared schemas.
 
 ## Basedpyright Typing Reminders
 

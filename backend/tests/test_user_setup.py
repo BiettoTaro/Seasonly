@@ -6,22 +6,32 @@ import pytest
 from sqlalchemy import Table
 
 from app.auth import TokenDecodeError, create_access_token, decode_access_token
+from app.auth.password_reset import generate_password_reset_token, hash_password_reset_token
+from app.auth.refresh_tokens import generate_refresh_token, hash_refresh_token
 from app.data.data_key import UserDataKey
 from app.data.data_target import USER_PROFILE_TARGET
 from app.data.enums import StorageBackendType
-from app.models import User, UserProfile
+from app.models import User, UserPasswordResetToken, UserProfile, UserRefreshToken
 
 
 def test_user_tables_are_configured() -> None:
     users_table = cast(Table, User.__table__)
     user_profiles_table = cast(Table, UserProfile.__table__)
+    refresh_tokens_table = cast(Table, UserRefreshToken.__table__)
+    password_reset_tokens_table = cast(Table, UserPasswordResetToken.__table__)
 
     assert User.__tablename__ == "users"
     assert UserProfile.__tablename__ == "user_profiles"
+    assert UserRefreshToken.__tablename__ == "user_refresh_tokens"
+    assert UserPasswordResetToken.__tablename__ == "user_password_reset_tokens"
     assert users_table.c.id.primary_key is True
     assert cast(object, users_table.c.email.unique) is True
     assert user_profiles_table.c.user_id.primary_key is True
     assert next(iter(user_profiles_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
+    assert cast(object, refresh_tokens_table.c.token_hash.unique) is True
+    assert next(iter(refresh_tokens_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
+    assert cast(object, password_reset_tokens_table.c.token_hash.unique) is True
+    assert next(iter(password_reset_tokens_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
 
 
 def test_user_profile_data_target_uses_postgres_with_cache() -> None:
@@ -62,3 +72,23 @@ def test_expired_access_token_is_rejected() -> None:
 
     with pytest.raises(TokenDecodeError, match="expired"):
         _ = decode_access_token(token, now=datetime(2026, 1, 1, 0, 6, tzinfo=UTC))
+
+
+def test_refresh_token_generation_returns_hashed_opaque_token() -> None:
+    token = generate_refresh_token()
+    token_hash = hash_refresh_token(token)
+
+    assert len(token) >= 32
+    assert token not in token_hash
+    assert len(token_hash) == 64
+    assert hash_refresh_token(token) == token_hash
+
+
+def test_password_reset_token_generation_returns_hashed_opaque_token() -> None:
+    token = generate_password_reset_token()
+    token_hash = hash_password_reset_token(token)
+
+    assert len(token) >= 32
+    assert token not in token_hash
+    assert len(token_hash) == 64
+    assert hash_password_reset_token(token) == token_hash

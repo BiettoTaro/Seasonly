@@ -1,6 +1,6 @@
+from app.data.contracts import DataSpec, DataTarget, UserProfileResponse
 from app.data.data_key import UserDataKey
 from app.data.enums import StorageBackendType
-from app.data.schemas import DataSpec, DataTarget, UserProfileResponse
 
 USER_PROFILE_TARGET = DataTarget(
     key=UserDataKey.PROFILE,
