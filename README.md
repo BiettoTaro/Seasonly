@@ -74,11 +74,17 @@ docker compose up --build
 
 The API will be available at `http://localhost:8000`.
 
+Apply database migrations before using persistence-backed endpoints:
+
+```bash
+./scripts/uv run alembic upgrade head
+```
+
 ## Planned Data Work
 
 - Seasonal produce datasets for Europe.
 - Recipe datasets relevant to European ingredients and cuisine.
-- Data architecture starts with modular `data_key`, `enums`, `data_target`, and `data/schemas` packages in `backend/app/data/`.
+- Data architecture starts with modular `data_key`, `data_source`, `data_target`, `contracts`, `enums`, and `registry` modules in `backend/app/data/`.
 - Dataset provenance, licensing, and refresh notes should be documented in `docs/data-sources.md`.
 
 ## Planned Features

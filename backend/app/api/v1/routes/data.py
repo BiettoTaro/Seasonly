@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
-from app.data.catalog import get_data_targets, list_data_registrations
+from app.data.contracts import DataSourceRegistration, DataTargetResponse
 from app.data.data_key import DataKey
-from app.data.schemas import DataSourceRegistration, DataTargetResponse
+from app.data.registry import get_data_targets, list_data_registrations
 
 router = APIRouter(prefix="/data")
 

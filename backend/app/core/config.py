@@ -1,9 +1,15 @@
+from typing import ClassVar
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     app_name: str = "Seasonly"
     app_env: str = "local"
@@ -15,6 +21,8 @@ class Settings(BaseSettings):
 
     auth_secret_key: str = "change-this-before-real-use"
     auth_access_token_expire_minutes: int = 30
+    auth_refresh_token_expire_days: int = 30
+    auth_password_reset_token_expire_minutes: int = 30
 
 
 settings = Settings()
