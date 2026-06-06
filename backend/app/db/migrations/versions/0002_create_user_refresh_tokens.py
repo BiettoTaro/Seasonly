@@ -1,7 +1,7 @@
 """create user refresh tokens
 
-Revision ID: 0002_create_user_refresh_tokens
-Revises: 0001_create_user_tables
+Revision ID: 0002_refresh_tokens
+Revises: 0001_users
 Create Date: 2026-06-05
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0002_create_user_refresh_tokens"
-down_revision: str | None = "0001_create_user_tables"
+revision: str = "0002_refresh_tokens"
+down_revision: str | None = "0001_users"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

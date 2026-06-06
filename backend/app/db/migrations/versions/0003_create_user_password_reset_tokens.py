@@ -1,7 +1,7 @@
 """create user password reset tokens
 
-Revision ID: 0003_create_user_password_reset_tokens
-Revises: 0002_create_user_refresh_tokens
+Revision ID: 0003_password_reset_tokens
+Revises: 0002_refresh_tokens
 Create Date: 2026-06-05
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0003_create_user_password_reset_tokens"
-down_revision: str | None = "0002_create_user_refresh_tokens"
+revision: str = "0003_password_reset_tokens"
+down_revision: str | None = "0002_refresh_tokens"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

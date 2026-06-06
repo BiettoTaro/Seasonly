@@ -1,6 +1,6 @@
 """create user tables
 
-Revision ID: 0001_create_user_tables
+Revision ID: 0001_users
 Revises: None
 Create Date: 2026-06-05
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0001_create_user_tables"
+revision: str = "0001_users"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
