@@ -11,7 +11,7 @@ The app will focus on seasonal produce in Europe, recipe data, authentication, v
 ├── backend/              # FastAPI application
 ├── ios/                  # Swift/iOS app workspace placeholder
 ├── docs/                 # Project notes and research
-├── data/                 # Dataset staging area, excluded except README files
+├── datasets/             # Dataset staging area, excluding generated extracts
 ├── infra/                # Local/dev infrastructure config
 ├── .codex/               # Project-specific assistant instructions and skills
 ├── docker-compose.yml    # API + PostgreSQL development stack

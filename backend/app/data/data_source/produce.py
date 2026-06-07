@@ -8,7 +8,10 @@ EU_SEASONAL_PRODUCE_REGISTRATION = DataSourceRegistration(
         data_key=DataKey.EU_SEASONAL_PRODUCE,
         domain=DataDomain.PRODUCE,
         name="EU seasonal produce",
-        notes="Placeholder registration until a licensed dataset is selected.",
+        notes=(
+            "Best available seasonal guidance, not absolute truth. EUFIC-derived data must remain "
+            "local until redistribution permission or an openly licensed replacement is secured."
+        ),
     ),
     targets=EU_SEASONAL_PRODUCE_TARGETS,
 )

@@ -4,7 +4,7 @@ from app.data.enums import DataTargetType
 EU_RECIPE_TARGETS: tuple[DataTarget, ...] = (
     DataTarget(
         target_type=DataTargetType.RAW_FILE,
-        name="data/raw/recipes",
+        name="datasets/raw/recipes",
         description="Original recipe dataset files.",
     ),
     DataTarget(

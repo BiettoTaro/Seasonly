@@ -27,6 +27,12 @@ build/
 storage/
 uploads/
 
+# generated / scraped datasets
+datasets/raw/eufic_*.csv
+datasets/raw/eufic_*.json
+datasets/processed/eufic_*.csv
+datasets/cache/
+
 # Docker/Postgres
 postgres-data/
 pgdata/
