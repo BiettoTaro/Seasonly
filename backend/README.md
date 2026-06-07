@@ -26,6 +26,23 @@ Render migration SQL without connecting to the database:
 ./scripts/uv run alembic upgrade head --sql
 ```
 
+## Seasonal Produce Data
+
+The API reads seasonal produce only from PostgreSQL. Generate and import the local EUFIC-derived
+dataset with:
+
+```bash
+./scripts/uv run python backend/scripts/scrape_eufic_seasonal.py
+./scripts/uv run alembic upgrade head
+./scripts/uv run python backend/scripts/import_seasonal_data.py
+```
+
+Query imported records with:
+
+```bash
+curl "http://localhost:8000/api/v1/produce/seasonal?country=GB&month=6"
+```
+
 ## Auth and User Endpoints
 
 Register with JSON:
