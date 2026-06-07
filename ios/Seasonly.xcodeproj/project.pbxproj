@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		D7DEBB522FD4220800DE0C01 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DEBB512FD4220800DE0C01 /* Authentication.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D73DF7352FCC8A8C0067F3C3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +31,7 @@
 		D73DF7272FCC8A8B0067F3C3 /* Seasonly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Seasonly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73DF7342FCC8A8C0067F3C3 /* SeasonlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeasonlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73DF73E2FCC8A8C0067F3C3 /* SeasonlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeasonlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7DEBB512FD4220800DE0C01 /* Authentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authentication.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -79,6 +84,7 @@
 				D73DF7372FCC8A8C0067F3C3 /* SeasonlyTests */,
 				D73DF7412FCC8A8C0067F3C3 /* SeasonlyUITests */,
 				D73DF7282FCC8A8B0067F3C3 /* Products */,
+				D7DEBB512FD4220800DE0C01 /* Authentication.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -236,6 +242,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7DEBB522FD4220800DE0C01 /* Authentication.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
