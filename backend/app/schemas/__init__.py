@@ -8,6 +8,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.health import HealthResponse
+from app.schemas.recipe import SeasonalRecipeListResponse, SeasonalRecipeResponse
 from app.schemas.user import (
     UserCreate,
     UserProfileCreate,
@@ -23,6 +24,8 @@ __all__ = [
     "PasswordResetConfirmRequest",
     "PasswordResetRequest",
     "RefreshTokenRequest",
+    "SeasonalRecipeListResponse",
+    "SeasonalRecipeResponse",
     "TokenResponse",
     "UserCreate",
     "UserProfileCreate",
