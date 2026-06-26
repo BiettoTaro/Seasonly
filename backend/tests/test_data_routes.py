@@ -11,7 +11,7 @@ def test_list_data_registrations() -> None:
     assert response.status_code == 200
     assert {item["metadata"]["data_key"] for item in response.json()} == {
         "eu_seasonal_produce",
-        "eu_recipes",
+        "themealdb_recipes",
         "recommendation_events",
     }
 
@@ -19,8 +19,15 @@ def test_list_data_registrations() -> None:
 def test_read_data_targets() -> None:
     client = TestClient(create_app())
 
-    response = client.get("/api/v1/data/targets/eu_recipes")
+    response = client.get("/api/v1/data/targets/themealdb_recipes")
 
     assert response.status_code == 200
-    assert response.json()["data_key"] == "eu_recipes"
-    assert len(response.json()["targets"]) == 2
+    assert response.json()["data_key"] == "themealdb_recipes"
+    assert {target["name"] for target in response.json()["targets"]} == {
+        "recipe_categories",
+        "recipes",
+        "ingredients",
+        "recipe_ingredients",
+        "tags",
+        "recipe_tags",
+    }

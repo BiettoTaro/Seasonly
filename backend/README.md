@@ -43,6 +43,30 @@ Query imported records with:
 curl "http://localhost:8000/api/v1/produce/seasonal?country=GB&month=6"
 ```
 
+## Recipe Data
+
+Apply migrations and import a complete TheMealDB snapshot with:
+
+```bash
+./scripts/uv run alembic upgrade head
+./scripts/uv run python backend/scripts/import_mealdb_recipes.py
+```
+
+The importer fetches and validates the complete provider snapshot before changing recipe tables.
+Recipe persistence is transactional, while a separate `data_import_runs` record retains success or
+failure status and imported record counts. Missing recipes are not immediately deactivated because
+a single provider scan can be incomplete; deactivation requires a separate repeated-miss policy.
+
+Authenticated users can list recipes matching produce seasonal in their profile country:
+
+```bash
+curl "http://localhost:8000/api/v1/recipes/seasonal?month=6&category=Vegetarian" \
+  -H "Authorization: Bearer <token>"
+```
+
+The profile country applies only to seasonal produce matching. Recipe `origin` is an independent,
+optional filter.
+
 ## Auth and User Endpoints
 
 Register with JSON:

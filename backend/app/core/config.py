@@ -24,5 +24,10 @@ class Settings(BaseSettings):
     auth_refresh_token_expire_days: int = 30
     auth_password_reset_token_expire_minutes: int = 30
 
+    recipes_api_key: str | None = None
+    recipes_base_url: str = "https://www.themealdb.com/api/json/v2/"
+    recipes_request_timeout_seconds: float = 20.0
+    recipes_request_retries: int = 2
+
 
 settings = Settings()

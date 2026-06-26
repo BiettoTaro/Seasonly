@@ -45,7 +45,19 @@ not extracted from EUFIC.
 
 ## Recipes
 
-Initial backend key: `eu_recipes`.
+Backend key: `themealdb_recipes`.
+
+### TheMealDB
+
+- Source: [TheMealDB API](https://www.themealdb.com/api.php)
+- Terms: [TheMealDB terms of use](https://www.themealdb.com/terms_of_use.php)
+- Coverage: International recipes, with area and country metadata where available.
+- Format: JSON API.
+- Refresh frequency: Not stated; a latest-meals endpoint is available to paid API users.
+- Licence and attribution: API content can be copied and modified through official endpoints. Paid
+  usage requires TheMealDB attribution and compliance with its rate limit and third-party content
+  terms.
+- Import notes and proposed PostgreSQL model: [TheMealDB API exploration](mealdb-api.md)
 
 ## Recommendation Data
 
