@@ -1,7 +1,7 @@
 from app.data.contracts.registration import DataSourceMetadata, DataSourceRegistration
 from app.data.contracts.response import DataTargetResponse
 from app.data.contracts.target import DataSpec, DataTarget
-from app.data.contracts.user import UserProfileResponse
+from app.data.contracts.user import OnboardingProfileResponse, UserProfileResponse
 
 __all__ = [
     "DataSourceMetadata",
@@ -9,5 +9,6 @@ __all__ = [
     "DataSpec",
     "DataTarget",
     "DataTargetResponse",
+    "OnboardingProfileResponse",
     "UserProfileResponse",
 ]
