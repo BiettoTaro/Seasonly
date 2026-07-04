@@ -40,7 +40,7 @@ dataset with:
 Query imported records with:
 
 ```bash
-curl "http://localhost:8000/api/v1/produce/seasonal?country=GB&month=6"
+curl "http://localhost:8001/api/v1/produce/seasonal?country=GB&month=6"
 ```
 
 ## Recipe Data
@@ -60,7 +60,7 @@ a single provider scan can be incomplete; deactivation requires a separate repea
 Authenticated users can list recipes matching produce seasonal in their profile country:
 
 ```bash
-curl "http://localhost:8000/api/v1/recipes/seasonal?month=6&category=Vegetarian" \
+curl "http://localhost:8001/api/v1/recipes/seasonal?month=6&category=Vegetarian" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -72,7 +72,7 @@ optional filter.
 Register with JSON:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/users \
+curl -X POST http://localhost:8001/api/v1/users \
   -H "Content-Type: application/json" \
   -H "CF-IPCountry: GB" \
   -d '{"email":"user@example.com","password":"correct-horse-battery"}'
@@ -81,7 +81,7 @@ curl -X POST http://localhost:8000/api/v1/users \
 Login uses OAuth2 password form data:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/token \
+curl -X POST http://localhost:8001/api/v1/auth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "username=user@example.com&password=correct-horse-battery"
 ```
@@ -90,7 +90,7 @@ The token response includes both `access_token` and `refresh_token`. Refresh tok
 opaque, stored hashed in the database, expire after 30 days by default, and rotate on use:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/refresh \
+curl -X POST http://localhost:8001/api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{"refresh_token":"<refresh-token>"}'
 ```
@@ -98,7 +98,7 @@ curl -X POST http://localhost:8000/api/v1/auth/refresh \
 Logout revokes the submitted refresh token for the current client session:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/logout \
+curl -X POST http://localhost:8001/api/v1/auth/logout \
   -H "Content-Type: application/json" \
   -d '{"refresh_token":"<refresh-token>"}'
 ```
@@ -106,7 +106,7 @@ curl -X POST http://localhost:8000/api/v1/auth/logout \
 Password reset requests use generic responses to avoid revealing whether an email is registered:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/password-reset/request \
+curl -X POST http://localhost:8001/api/v1/auth/password-reset/request \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com"}'
 ```
@@ -114,7 +114,7 @@ curl -X POST http://localhost:8000/api/v1/auth/password-reset/request \
 Confirm the reset with the token sent to the user:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/password-reset/confirm \
+curl -X POST http://localhost:8001/api/v1/auth/password-reset/confirm \
   -H "Content-Type: application/json" \
   -d '{"reset_token":"<reset-token>","new_password":"new-correct-horse-battery"}'
 ```
@@ -125,14 +125,14 @@ TODO: add a local/dev-only reset-token sink for manual testing without exposing 
 Authenticated requests use the returned bearer token:
 
 ```bash
-curl http://localhost:8000/api/v1/users/me \
+curl http://localhost:8001/api/v1/users/me \
   -H "Authorization: Bearer <token>"
 ```
 
 Coarse profile location can be inferred from trusted proxy headers with:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/users/me/location/coarse \
+curl -X POST http://localhost:8001/api/v1/users/me/location/coarse \
   -H "Authorization: Bearer <token>" \
   -H "CF-IPCountry: GB" \
   -H "CF-Region-Code: LND"

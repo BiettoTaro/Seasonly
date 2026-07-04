@@ -9,11 +9,11 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md alembic.ini ./
 RUN uv pip install --system .
 
 COPY backend ./backend
 
-EXPOSE 8000
+EXPOSE 8001
 
-CMD ["fastapi", "run", "backend/app/main.py", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "alembic -c /app/alembic.ini upgrade head && exec uvicorn app.main:app --app-dir /app/backend --host 0.0.0.0 --port 8001"]

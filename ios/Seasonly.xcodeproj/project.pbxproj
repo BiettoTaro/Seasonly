@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D7353ABE2FF3B22D004BE60B /* MainAppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7353ABD2FF3B22D004BE60B /* MainAppView.swift */; };
+		D742AD712FF178C80020B472 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D742AD702FF178C80020B472 /* OnboardingView.swift */; };
 		D7DEBB522FD4220800DE0C01 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7DEBB512FD4220800DE0C01 /* Authentication.swift */; };
 /* End PBXBuildFile section */
 
@@ -28,9 +30,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D7353ABD2FF3B22D004BE60B /* MainAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainAppView.swift; sourceTree = "<group>"; };
 		D73DF7272FCC8A8B0067F3C3 /* Seasonly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Seasonly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73DF7342FCC8A8C0067F3C3 /* SeasonlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeasonlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73DF73E2FCC8A8C0067F3C3 /* SeasonlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SeasonlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D742AD702FF178C80020B472 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		D7DEBB512FD4220800DE0C01 /* Authentication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Authentication.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -85,6 +89,8 @@
 				D73DF7412FCC8A8C0067F3C3 /* SeasonlyUITests */,
 				D73DF7282FCC8A8B0067F3C3 /* Products */,
 				D7DEBB512FD4220800DE0C01 /* Authentication.swift */,
+				D742AD702FF178C80020B472 /* OnboardingView.swift */,
+				D7353ABD2FF3B22D004BE60B /* MainAppView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -242,7 +248,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7353ABE2FF3B22D004BE60B /* MainAppView.swift in Sources */,
 				D7DEBB522FD4220800DE0C01 /* Authentication.swift in Sources */,
+				D742AD712FF178C80020B472 /* OnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -404,6 +412,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Seasonly uses your location to suggest seasonal food preferences for your country.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -435,6 +444,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Seasonly uses your location to suggest seasonal food preferences for your country.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

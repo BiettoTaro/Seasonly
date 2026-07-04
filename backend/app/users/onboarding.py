@@ -117,8 +117,8 @@ async def update_diet(
 ) -> OnboardingProfileResponse:
     profile = await _ensure_profile(session, user.id)
     profile.diet_pattern = payload.diet_pattern.value
+    _remove_incompatible_proteins(profile)
     _touch_in_progress(profile)
-    _validate_current_proteins(profile)
     await session.commit()
     return await get_onboarding_profile(session, user)
 
@@ -139,8 +139,8 @@ async def update_allergies(
         _ensure_allergy_consent(profile, user.id)
     else:
         _withdraw_allergy_consents(profile)
+    _remove_incompatible_proteins(profile)
     _touch_in_progress(profile)
-    _validate_current_proteins(profile)
     await session.commit()
     return await get_onboarding_profile(session, user)
 
@@ -156,8 +156,8 @@ async def update_dietary_rules(
         for rule in sorted(payload.dietary_rules, key=lambda value: value.value)
     ]
     profile.dietary_rules_updated_at = utc_now()
+    _remove_incompatible_proteins(profile)
     _touch_in_progress(profile)
-    _validate_current_proteins(profile)
     await session.commit()
     return await get_onboarding_profile(session, user)
 
@@ -344,6 +344,50 @@ def _protein_errors(profile: UserProfile) -> list[str]:
     if Allergen.EGGS in allergens and ProteinPreference.EGGS in proteins:
         errors.append("Egg protein conflicts with egg allergy.")
     return errors
+
+
+def _remove_incompatible_proteins(profile: UserProfile) -> None:
+    invalid = _invalid_proteins(profile)
+    if not invalid:
+        return
+    profile.protein_preferences = [
+        item
+        for item in profile.protein_preferences
+        if ProteinPreference(item.protein) not in invalid
+    ]
+    for index, item in enumerate(profile.protein_preferences):
+        item.preference_rank = index + 1
+
+
+def _invalid_proteins(profile: UserProfile) -> set[ProteinPreference]:
+    if profile.diet_pattern is None:
+        return set()
+
+    diet = DietPattern(profile.diet_pattern)
+    proteins = {ProteinPreference(item.protein) for item in profile.protein_preferences}
+    allergens = {Allergen(item.allergen) for item in profile.allergens}
+    rules = {DietaryRule(item.dietary_rule) for item in profile.dietary_rules}
+    invalid: set[ProteinPreference] = set()
+
+    if diet == DietPattern.PESCATARIAN:
+        invalid.update(proteins - PESCATARIAN_ALLOWED_PROTEINS)
+    if diet == DietPattern.VEGETARIAN:
+        invalid.update(proteins - VEGETARIAN_ALLOWED_PROTEINS)
+    if diet == DietPattern.VEGAN:
+        invalid.update(proteins - VEGAN_ALLOWED_PROTEINS)
+    if DietaryRule.AVOID_PORK in rules:
+        invalid.add(ProteinPreference.PORK)
+    if DietaryRule.AVOID_BEEF in rules:
+        invalid.add(ProteinPreference.BEEF)
+    if DietaryRule.AVOID_SHELLFISH in rules:
+        invalid.add(ProteinPreference.SEAFOOD)
+    if Allergen.FISH in allergens:
+        invalid.add(ProteinPreference.FISH)
+    if Allergen.CRUSTACEANS in allergens or Allergen.MOLLUSCS in allergens:
+        invalid.add(ProteinPreference.SEAFOOD)
+    if Allergen.EGGS in allergens:
+        invalid.add(ProteinPreference.EGGS)
+    return proteins & invalid
 
 
 def _completion_errors(profile: UserProfile) -> list[str]:

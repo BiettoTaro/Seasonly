@@ -15,6 +15,7 @@ from app.models.user import (
     UserProteinPreference,
     UserRefreshToken,
 )
+from app.models.user_recipe import UserPlannedMeal, UserRecipeFavourite, UserRecipeHistory
 
 __all__ = [
     "Base",
@@ -36,4 +37,7 @@ __all__ = [
     "UserProfile",
     "UserProteinPreference",
     "UserRefreshToken",
+    "UserPlannedMeal",
+    "UserRecipeFavourite",
+    "UserRecipeHistory",
 ]

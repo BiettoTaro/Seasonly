@@ -15,6 +15,7 @@ class SeasonalRecipeResponse(BaseModel):
     area: str | None
     country_of_origin: str | None
     thumbnail_url: str | None
+    instructions: str | None = None
     matched_seasonal_produce: list[str]
     matched_seasonal_produce_count: int
 

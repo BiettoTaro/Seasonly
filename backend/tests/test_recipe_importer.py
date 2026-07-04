@@ -1,6 +1,6 @@
 import pytest
 
-from app.recipes.importer import normalize_snapshot
+from app.recipes.importer import batches, normalize_snapshot
 
 
 def category_payload() -> dict[str, object]:
@@ -45,6 +45,10 @@ def test_normalize_snapshot_validates_complete_snapshot() -> None:
     assert snapshot["categories"][0]["provider_category_id"] == "1"
     assert snapshot["ingredients"][0]["normalized_name"] == "garlic"
     assert snapshot["recipes"][0]["country_of_origin"] == "Italy"
+
+
+def test_batches_splits_large_import_payloads() -> None:
+    assert batches([1, 2, 3, 4, 5], batch_size=2) == [[1, 2], [3, 4], [5]]
 
 
 @pytest.mark.parametrize(

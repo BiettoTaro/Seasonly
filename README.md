@@ -40,7 +40,7 @@ uv venv
 Run the API locally:
 
 ```bash
-./scripts/uv run fastapi dev backend/app/main.py
+./scripts/uv run uvicorn app.main:app --reload --app-dir backend
 ```
 
 Run linting and formatting checks:
@@ -72,7 +72,7 @@ Start PostgreSQL and the API:
 docker compose up --build
 ```
 
-The API will be available at `http://localhost:8000`.
+The API will be available at `http://localhost:8001`.
 
 Apply database migrations before using persistence-backed endpoints:
 
