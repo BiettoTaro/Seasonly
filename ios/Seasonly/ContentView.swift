@@ -8,8 +8,19 @@ struct ContentView: View {
             if session.isRestoring {
                 LaunchView()
             } else if let user = session.user {
-                DashboardView(user: user) {
-                    Task { await session.logout() }
+                if let profile = session.onboardingProfile {
+                    if profile.isCompleted {
+                        MainAppView(session: session, user: user) {
+                            Task { await session.logout() }
+                        }
+                    } else {
+                        OnboardingView(session: session)
+                    }
+                } else {
+                    LaunchView()
+                        .task {
+                            await session.loadOnboardingProfile()
+                        }
                 }
             } else {
                 AuthenticationView(session: session)
@@ -280,70 +291,6 @@ private struct PasswordResetView: View {
     }
 }
 
-private struct DashboardView: View {
-    let user: SeasonlyUser
-    let logout: () -> Void
-
-    var body: some View {
-        ZStack {
-            RusticBackground()
-
-            VStack(spacing: 24) {
-                HStack {
-                    SeasonlyMark()
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Seasonly")
-                            .font(.headline)
-                        Text(user.profile?.displayName ?? user.email)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: logout) {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                            .frame(width: 42, height: 42)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(SeasonlyColors.brown)
-                    .accessibilityLabel("Sign out")
-                }
-
-                Spacer()
-
-                VStack(spacing: 16) {
-                    Image(systemName: "chart.bar.xaxis.ascending")
-                        .font(.system(size: 38, weight: .semibold))
-                        .foregroundStyle(SeasonlyColors.brown)
-
-                    Text("Dashboard")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(SeasonlyColors.ink)
-
-                    Text("Your seasonal dashboard will appear here.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 44)
-                .padding(.horizontal, 22)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(.white.opacity(0.48), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.13), radius: 26, y: 18)
-
-                Spacer()
-            }
-            .padding(22)
-            .frame(maxWidth: 600)
-        }
-    }
-}
-
 private struct LaunchView: View {
     var body: some View {
         ZStack {
@@ -464,7 +411,7 @@ private struct AuthField<Content: View>: View {
     }
 }
 
-private struct StatusMessage: View {
+struct StatusMessage: View {
     let message: String
     let isError: Bool
 
@@ -479,7 +426,7 @@ private struct StatusMessage: View {
     }
 }
 
-private struct RusticBackground: View {
+struct RusticBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
@@ -508,7 +455,7 @@ private struct RusticBackground: View {
     }
 }
 
-private enum SeasonlyColors {
+enum SeasonlyColors {
     static let brown = Color(red: 0.43, green: 0.25, blue: 0.14)
     static let ink = Color(red: 0.22, green: 0.15, blue: 0.1)
 }
