@@ -45,14 +45,24 @@ async def authenticate_user(session: AsyncSession, email: str, password: str) ->
 
 async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     result = await session.execute(
-        select(User).options(selectinload(User.profile)).where(User.id == user_id)
+        select(User)
+        .options(
+            selectinload(User.profile).selectinload(UserProfile.allergens),
+            selectinload(User.profile).selectinload(UserProfile.dietary_rules),
+        )
+        .where(User.id == user_id)
     )
     return result.scalar_one_or_none()
 
 
 async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
     result = await session.execute(
-        select(User).options(selectinload(User.profile)).where(User.email == email.lower())
+        select(User)
+        .options(
+            selectinload(User.profile).selectinload(UserProfile.allergens),
+            selectinload(User.profile).selectinload(UserProfile.dietary_rules),
+        )
+        .where(User.email == email.lower())
     )
     return result.scalar_one_or_none()
 

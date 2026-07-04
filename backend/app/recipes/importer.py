@@ -34,6 +34,9 @@ class RecipeImportSnapshot(TypedDict):
     recipes: list[NormalizedRecipe]
 
 
+INSERT_BATCH_SIZE = 1_000
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -258,7 +261,8 @@ async def _insert_recipe_ingredients(
         for ingredient in recipe["ingredients"]
     ]
     if values:
-        _ = await session.execute(insert(RecipeIngredient).values(values))
+        for batch in batches(values):
+            _ = await session.execute(insert(RecipeIngredient).values(batch))
 
 
 async def _upsert_and_link_tags(
@@ -304,7 +308,12 @@ async def _upsert_and_link_tags(
         for tag in recipe["tags"]
     ]
     if links:
-        _ = await session.execute(insert(RecipeTag).values(links))
+        for batch in batches(links):
+            _ = await session.execute(insert(RecipeTag).values(batch))
+
+
+def batches[T](values: list[T], batch_size: int = INSERT_BATCH_SIZE) -> list[list[T]]:
+    return [values[index : index + batch_size] for index in range(0, len(values), batch_size)]
 
 
 async def _category_ids_by_normalized_name(session: AsyncSession) -> dict[str, uuid.UUID]:

@@ -5,7 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
-from app.data.enums import CountryCode, Month
+from app.data.enums import (
+    Allergen,
+    AllergyProfileStatus,
+    CountryCode,
+    DietaryRule,
+    DietPattern,
+    Month,
+)
 from app.db.session import get_db_session
 from app.models import User
 from app.recipes.service import list_seasonal_recipes
@@ -36,6 +43,9 @@ async def read_seasonal_recipes(
         category=category,
         area=area,
         country_of_origin=origin,
+        excluded_allergens=_profile_allergens(current_user),
+        diet_pattern=_profile_diet(current_user),
+        dietary_rules=_profile_dietary_rules(current_user),
     )
 
 
@@ -52,3 +62,24 @@ def _profile_country_code(user: User) -> CountryCode:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="A supported profile country is required for seasonal recipes",
         ) from error
+
+
+def _profile_allergens(user: User) -> set[Allergen]:
+    if (
+        user.profile is None
+        or user.profile.allergy_status != AllergyProfileStatus.PROVIDED.value
+    ):
+        return set()
+    return {Allergen(item.allergen) for item in user.profile.allergens}
+
+
+def _profile_diet(user: User) -> DietPattern | None:
+    if user.profile is None or user.profile.diet_pattern is None:
+        return None
+    return DietPattern(user.profile.diet_pattern)
+
+
+def _profile_dietary_rules(user: User) -> set[DietaryRule]:
+    if user.profile is None:
+        return set()
+    return {DietaryRule(item.dietary_rule) for item in user.profile.dietary_rules}
