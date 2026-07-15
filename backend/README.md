@@ -119,8 +119,8 @@ curl -X POST http://localhost:8001/api/v1/auth/password-reset/confirm \
   -d '{"reset_token":"<reset-token>","new_password":"new-correct-horse-battery"}'
 ```
 
-TODO: add an email provider adapter to deliver reset links.
-TODO: add a local/dev-only reset-token sink for manual testing without exposing tokens in API responses.
+Configure `SMTP_HOST`, `SMTP_FROM_EMAIL`, and optional SMTP authentication settings to deliver
+one-time reset tokens. Production configuration fails at startup if delivery is not configured.
 
 Authenticated requests use the returned bearer token:
 
@@ -137,3 +137,6 @@ curl -X POST http://localhost:8001/api/v1/users/me/location/coarse \
   -H "CF-IPCountry: GB" \
   -H "CF-Region-Code: LND"
 ```
+
+Set `TRUST_PROXY_LOCATION_HEADERS=true` only when the API is reachable exclusively through a proxy
+that overwrites these headers. They are ignored by default.

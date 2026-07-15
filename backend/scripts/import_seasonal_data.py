@@ -24,6 +24,9 @@ CSV_FIELDS: Final = (
     "source_url",
     "mealdb_name",
 )
+PRODUCE_TYPE_OVERRIDES: Final = {
+    "watermelon": ProduceType.FRUIT,
+}
 
 
 class SeasonalCsvRow(TypedDict):
@@ -47,10 +50,11 @@ def read_seasonal_csv(input_path: Path) -> list[SeasonalCsvRow]:
         if tuple(reader.fieldnames or ()) != CSV_FIELDS:
             raise ValueError(f"Unexpected CSV fields: {reader.fieldnames}")
 
-        rows = [
-            _validate_row(row, line_number=line_number)
-            for line_number, row in enumerate(reader, start=2)
-        ]
+        rows = []
+        for line_number, row in enumerate(reader, start=2):
+            validated_row = _validate_row(row, line_number=line_number)
+            if _matches_type_override(validated_row):
+                rows.append(validated_row)
 
     if not rows:
         raise ValueError("Seasonal produce CSV contains no rows")
@@ -93,6 +97,11 @@ def _validate_produce_consistency(rows: list[SeasonalCsvRow]) -> None:
         existing_mealdb_name = mealdb_names.setdefault(key, row["mealdb_name"])
         if existing_mealdb_name != row["mealdb_name"]:
             raise ValueError(f"Produce {row['produce_name']!r} has conflicting MealDB metadata")
+
+
+def _matches_type_override(row: SeasonalCsvRow) -> bool:
+    override = PRODUCE_TYPE_OVERRIDES.get(row["produce_name"])
+    return override is None or row["produce_type"] == override.value
 
 
 def _deduplicate_rows(rows: list[SeasonalCsvRow]) -> list[SeasonalCsvRow]:

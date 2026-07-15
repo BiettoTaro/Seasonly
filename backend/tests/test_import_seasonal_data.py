@@ -80,6 +80,34 @@ def test_read_seasonal_csv_allows_same_name_with_different_types(tmp_path: Path)
     assert len(read_seasonal_csv(input_path)) == 2
 
 
+def test_read_seasonal_csv_removes_watermelon_from_vegetables(tmp_path: Path) -> None:
+    input_path = tmp_path / "seasonal.csv"
+    write_csv(
+        input_path,
+        [
+            valid_row(produce_name="Watermelon", produce_type="fruit", mealdb_name="Watermelon"),
+            valid_row(
+                produce_name="Watermelon",
+                produce_type="vegetable",
+                mealdb_name="Watermelon",
+            ),
+        ],
+    )
+
+    assert read_seasonal_csv(input_path) == [
+        {
+            "country_code": "GB",
+            "country_name": "United Kingdom",
+            "month": 6,
+            "produce_name": "watermelon",
+            "produce_type": "fruit",
+            "source_name": "Seasonly Demo",
+            "source_url": None,
+            "mealdb_name": "watermelon",
+        }
+    ]
+
+
 def test_read_seasonal_csv_deduplicates_identical_seasons(tmp_path: Path) -> None:
     input_path = tmp_path / "seasonal.csv"
     write_csv(input_path, [valid_row(), valid_row()])

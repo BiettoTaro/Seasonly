@@ -5,10 +5,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.auth.session_revocation import revoke_user_refresh_tokens
 from app.models import User, UserProfile
 from app.schemas.user import UserCreate, UserProfileCreate, UserProfileUpdate, UserUpdate
 from app.users.geolocation import CoarseLocation
-from app.users.security import hash_password, verify_password
+from app.users.security import DUMMY_PASSWORD_HASH, hash_password, verify_password
 
 
 class DuplicateUserEmailError(ValueError):
@@ -36,9 +37,9 @@ async def create_user(
 
 async def authenticate_user(session: AsyncSession, email: str, password: str) -> User | None:
     user = await get_user_by_email(session, email)
-    if user is None or not user.is_active:
-        return None
-    if not verify_password(password, user.password_hash):
+    password_hash = user.password_hash if user is not None else DUMMY_PASSWORD_HASH
+    password_matches = verify_password(password, password_hash)
+    if user is None or not user.is_active or not password_matches:
         return None
     return user
 
@@ -72,6 +73,7 @@ async def update_user(session: AsyncSession, user: User, payload: UserUpdate) ->
         user.email = str(payload.email).lower()
     if payload.password is not None:
         user.password_hash = hash_password(payload.password)
+        await revoke_user_refresh_tokens(session, user)
     if payload.profile is not None:
         _apply_profile_update(user, payload.profile)
 

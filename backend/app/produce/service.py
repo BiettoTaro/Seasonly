@@ -5,14 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.enums import CountryCode, Month, ProduceType
 from app.models import Produce, ProduceSeason
-from app.schemas.produce import SeasonalProduceResponse
+from app.schemas.produce import SeasonalProduceGroupedResponse, SeasonalProduceResponse
 
 
 async def list_seasonal_produce(
     session: AsyncSession,
     country_code: CountryCode,
     month: Month,
-) -> list[SeasonalProduceResponse]:
+) -> SeasonalProduceGroupedResponse:
     result = await session.execute(
         select(
             Produce.id,
@@ -32,7 +32,11 @@ async def list_seasonal_produce(
         )
         .order_by(Produce.type, Produce.name)
     )
-    return [_to_response(*row.tuple()) for row in result.all()]
+    produce = [_to_response(*row.tuple()) for row in result.all()]
+    return SeasonalProduceGroupedResponse(
+        fruits=[item for item in produce if item.type == ProduceType.FRUIT],
+        vegetables=[item for item in produce if item.type == ProduceType.VEGETABLE],
+    )
 
 
 def _to_response(

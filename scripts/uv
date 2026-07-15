@@ -2,6 +2,9 @@
 set -eu
 
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+if [ "${VIRTUAL_ENV:-}" != "${PROJECT_ROOT}/.venv" ]; then
+    unset VIRTUAL_ENV
+fi
 export UV_PYTHON="${PROJECT_ROOT}/.venv/bin/python"
 export UV_CACHE_DIR="${PROJECT_ROOT}/.uv-cache"
 if [ -n "${PYTHONPATH:-}" ]; then

@@ -72,6 +72,9 @@ def test_user_tables_are_configured() -> None:
     assert cast(object, user_consents_table.c.user_id.index) is True
     assert next(iter(user_consents_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
     assert cast(object, refresh_tokens_table.c.token_hash.unique) is True
+    assert cast(object, refresh_tokens_table.c.family_id.index) is True
+    assert cast(object, refresh_tokens_table.c.parent_token_id.unique) is True
+    assert next(iter(refresh_tokens_table.c.parent_token_id.foreign_keys)).ondelete == "SET NULL"
     assert next(iter(refresh_tokens_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
     assert cast(object, password_reset_tokens_table.c.token_hash.unique) is True
     assert next(iter(password_reset_tokens_table.c.user_id.foreign_keys)).ondelete == "CASCADE"

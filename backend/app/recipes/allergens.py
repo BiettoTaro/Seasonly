@@ -93,17 +93,12 @@ ALLERGEN_TERMS: dict[Allergen, set[str]] = {
 
 
 def allergen_terms(allergens: Iterable[Allergen]) -> set[str]:
-    return {
-        term
-        for allergen in allergens
-        for term in ALLERGEN_TERMS.get(allergen, set())
-    }
+    return {term for allergen in allergens for term in ALLERGEN_TERMS.get(allergen, set())}
 
 
 def allergen_patterns(allergens: Iterable[Allergen]) -> list[str]:
     return [
-        _word_pattern(term)
-        for term in sorted(allergen_terms(allergens), key=len, reverse=True)
+        _word_pattern(term) for term in sorted(allergen_terms(allergens), key=len, reverse=True)
     ]
 
 

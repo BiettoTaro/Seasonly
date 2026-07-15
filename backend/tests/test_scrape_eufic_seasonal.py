@@ -74,6 +74,7 @@ def sample_fvlist() -> dict[str, dict[str, list[tuple[str, str]]]]:
         "Vegetable": {
             "  Courgette ": [(" June ", " Italy ")],
             "Tomato": [("June", "Italy")],
+            "Watermelon": [("August", "Spain")],
         },
     }
 
@@ -120,6 +121,17 @@ def test_transform_filters_deduplicates_sorts_and_warns() -> None:
     }
     assert "No EUFIC seasonal records found for Slovenia" in warnings
     assert not any("Italy" in warning or "United Kingdom" in warning for warning in warnings)
+
+
+def test_transform_removes_watermelon_from_vegetables() -> None:
+    rows, _ = transform_fvlist(
+        {
+            "Fruit": {"Watermelon": [("August", "Spain")]},
+            "Vegetable": {"Watermelon": [("August", "Spain")]},
+        }
+    )
+
+    assert [(row["produce_name"], row["produce_type"]) for row in rows] == [("watermelon", "fruit")]
 
 
 @pytest.mark.parametrize(

@@ -228,6 +228,17 @@ struct SeasonalProduce: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+struct SeasonalProduceGroups: Codable, Hashable, Sendable {
+    let fruits: [SeasonalProduce]
+    let vegetables: [SeasonalProduce]
+
+    static let empty = SeasonalProduceGroups(fruits: [], vegetables: [])
+
+    var all: [SeasonalProduce] {
+        fruits + vegetables
+    }
+}
+
 struct SeasonlyUser: Codable, Sendable {
     let id: UUID
     let email: String
@@ -284,6 +295,16 @@ private struct RefreshTokenRequest: Codable {
 
 private struct PasswordResetRequest: Encodable {
     let email: String
+}
+
+private struct PasswordResetConfirmRequest: Encodable {
+    let resetToken: String
+    let newPassword: String
+
+    enum CodingKeys: String, CodingKey {
+        case resetToken = "reset_token"
+        case newPassword = "new_password"
+    }
 }
 
 struct PrivacyAcknowledgeRequest: Encodable {
@@ -389,12 +410,15 @@ private struct ValidationIssue: Decodable {
 
 enum AuthenticationError: LocalizedError {
     case invalidResponse
+    case unauthorized
     case server(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "The server returned an unexpected response."
+        case .unauthorized:
+            return "Your session has expired. Please sign in again."
         case .server(let message):
             return message
         }
@@ -416,11 +440,21 @@ struct AuthenticationClient: Sendable {
     }
 
     static var defaultBaseURL: URL {
-        if let override = ProcessInfo.processInfo.environment["SEASONLY_API_BASE_URL"],
-           let url = URL(string: override) {
+        let configuredValue = ProcessInfo.processInfo.environment["SEASONLY_API_BASE_URL"]
+            ?? Bundle.main.object(forInfoDictionaryKey: "SEASONLY_API_BASE_URL") as? String
+        if let configuredValue,
+           !configuredValue.isEmpty,
+           let url = URL(string: configuredValue) {
+#if !DEBUG
+            precondition(url.scheme == "https", "Release API endpoints must use HTTPS")
+#endif
             return url
         }
+#if DEBUG
         return URL(string: "http://127.0.0.1:8001/api/v1")!
+#else
+        preconditionFailure("SEASONLY_API_BASE_URL is required for release builds")
+#endif
     }
 
     func login(email: String, password: String) async throws -> TokenResponse {
@@ -469,6 +503,18 @@ struct AuthenticationClient: Sendable {
             path: "auth/password-reset/request",
             method: "POST",
             payload: PasswordResetRequest(email: email)
+        )
+        return response.message
+    }
+
+    func confirmPasswordReset(resetToken: String, newPassword: String) async throws -> String {
+        let response: MessageResponse = try await sendJSON(
+            path: "auth/password-reset/confirm",
+            method: "POST",
+            payload: PasswordResetConfirmRequest(
+                resetToken: resetToken,
+                newPassword: newPassword
+            )
         )
         return response.message
     }
@@ -592,7 +638,7 @@ struct AuthenticationClient: Sendable {
         return try await send(request)
     }
 
-    func seasonalProduce(countryCode: String, month: Int) async throws -> [SeasonalProduce] {
+    func seasonalProduce(countryCode: String, month: Int) async throws -> SeasonalProduceGroups {
         let request = request(
             path: "produce/seasonal",
             method: "GET",
@@ -713,6 +759,10 @@ struct AuthenticationClient: Sendable {
             throw AuthenticationError.invalidResponse
         }
 
+        if httpResponse.statusCode == 401 {
+            throw AuthenticationError.unauthorized
+        }
+
         guard 200..<300 ~= httpResponse.statusCode else {
             let apiError = try? decoder.decode(APIErrorResponse.self, from: data)
             throw AuthenticationError.server(apiError?.detail.message ?? "Request failed (\(httpResponse.statusCode)).")
@@ -735,11 +785,14 @@ private struct TokenStore {
     func save(_ tokens: TokenResponse) throws {
         let data = try JSONEncoder().encode(tokens)
         let query = baseQuery
-        SecItemDelete(query as CFDictionary)
-
-        var attributes = query
-        attributes[kSecValueData as String] = data
-        let status = SecItemAdd(attributes as CFDictionary, nil)
+        let updates: [String: Any] = [kSecValueData as String: data]
+        var status = SecItemUpdate(query as CFDictionary, updates as CFDictionary)
+        if status == errSecItemNotFound {
+            var attributes = query
+            attributes[kSecValueData as String] = data
+            attributes[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            status = SecItemAdd(attributes as CFDictionary, nil)
+        }
         guard status == errSecSuccess else {
             throw AuthenticationError.server("The session could not be saved securely.")
         }
@@ -783,6 +836,7 @@ final class AuthenticationSession {
     private let client: AuthenticationClient
     private let tokenStore = TokenStore()
     private var tokens: TokenResponse?
+    private var refreshTask: Task<TokenResponse, Error>?
 
     init(client: AuthenticationClient? = nil) {
         self.client = client ?? AuthenticationClient()
@@ -791,12 +845,12 @@ final class AuthenticationSession {
     func restore() async {
         defer { isRestoring = false }
         guard let storedTokens = tokenStore.load() else { return }
+        tokens = storedTokens
 
         do {
             user = try await client.currentUser(accessToken: storedTokens.accessToken)
             onboardingProfile = try? await client.onboardingProfile(accessToken: storedTokens.accessToken)
-            tokens = storedTokens
-        } catch {
+        } catch AuthenticationError.unauthorized {
             do {
                 let refreshedTokens = try await client.refresh(refreshToken: storedTokens.refreshToken)
                 try tokenStore.save(refreshedTokens)
@@ -804,8 +858,11 @@ final class AuthenticationSession {
                 user = try await client.currentUser(accessToken: refreshedTokens.accessToken)
                 onboardingProfile = try? await client.onboardingProfile(accessToken: refreshedTokens.accessToken)
             } catch {
+                tokens = nil
                 tokenStore.clear()
             }
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 
@@ -835,11 +892,27 @@ final class AuthenticationSession {
         }
     }
 
-    func loadOnboardingProfile() async {
-        guard let accessToken = tokens?.accessToken else { return }
+    func confirmPasswordReset(resetToken: String, newPassword: String) async -> String? {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
 
         do {
-            onboardingProfile = try await client.onboardingProfile(accessToken: accessToken)
+            return try await client.confirmPasswordReset(
+                resetToken: resetToken,
+                newPassword: newPassword
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func loadOnboardingProfile() async {
+        do {
+            onboardingProfile = try await withAuthorizedAccess { accessToken in
+                try await client.onboardingProfile(accessToken: accessToken)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -926,43 +999,44 @@ final class AuthenticationSession {
         let didComplete = await updateOnboarding { accessToken in
             try await client.completeOnboarding(accessToken: accessToken)
         }
-        if didComplete, let accessToken = tokens?.accessToken {
-            user = try? await client.currentUser(accessToken: accessToken)
+        if didComplete {
+            user = try? await withAuthorizedAccess { accessToken in
+                try await client.currentUser(accessToken: accessToken)
+            }
         }
         return didComplete
     }
 
     func fetchSeasonalRecipes(pageSize: Int = 20, area: String? = nil) async -> SeasonalRecipeList? {
-        guard let accessToken = tokens?.accessToken else {
-            errorMessage = "Your session has expired. Please sign in again."
-            return nil
-        }
-
         do {
-            let list = try await client.seasonalRecipes(accessToken: accessToken, pageSize: pageSize, area: area)
-            print("Seasonly recipes debug: loaded \(list.items.count) of \(list.total) recipes for \(list.countryCode), month \(list.month)")
-            return list
+            return try await withAuthorizedAccess { accessToken in
+                try await client.seasonalRecipes(
+                    accessToken: accessToken,
+                    pageSize: pageSize,
+                    area: area
+                )
+            }
         } catch {
-            print("Seasonly recipes debug: failed to load seasonal recipes: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
             return nil
         }
     }
 
-    func fetchSeasonalProduce(countryCode: String, month: Int = Calendar.current.component(.month, from: Date())) async -> [SeasonalProduce] {
+    func fetchSeasonalProduce(countryCode: String, month: Int = Calendar.current.component(.month, from: Date())) async -> SeasonalProduceGroups {
         do {
             return try await client.seasonalProduce(countryCode: countryCode, month: month)
         } catch {
             errorMessage = error.localizedDescription
-            return []
+            return .empty
         }
     }
 
     func fetchFavourites() async -> [SeasonalRecipe] {
-        guard let accessToken = tokens?.accessToken else { return [] }
-
         do {
-            return try await client.favourites(accessToken: accessToken).map { $0.recipe.seasonalRecipe }
+            return try await withAuthorizedAccess { accessToken in
+                try await client.favourites(accessToken: accessToken)
+                    .map { $0.recipe.seasonalRecipe }
+            }
         } catch {
             errorMessage = error.localizedDescription
             return []
@@ -970,30 +1044,31 @@ final class AuthenticationSession {
     }
 
     func saveFavourite(recipeId: UUID) async {
-        guard let accessToken = tokens?.accessToken else { return }
-
         do {
-            _ = try await client.saveFavourite(accessToken: accessToken, recipeId: recipeId)
+            _ = try await withAuthorizedAccess { accessToken in
+                try await client.saveFavourite(accessToken: accessToken, recipeId: recipeId)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func deleteFavourite(recipeId: UUID) async {
-        guard let accessToken = tokens?.accessToken else { return }
-
         do {
-            try await client.deleteFavourite(accessToken: accessToken, recipeId: recipeId)
+            try await withAuthorizedAccess { accessToken in
+                try await client.deleteFavourite(accessToken: accessToken, recipeId: recipeId)
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func fetchRecipeHistory() async -> [SeasonalRecipe] {
-        guard let accessToken = tokens?.accessToken else { return [] }
-
         do {
-            return try await client.recipeHistory(accessToken: accessToken).map { $0.recipe.seasonalRecipe }
+            return try await withAuthorizedAccess { accessToken in
+                try await client.recipeHistory(accessToken: accessToken)
+                    .map { $0.recipe.seasonalRecipe }
+            }
         } catch {
             errorMessage = error.localizedDescription
             return []
@@ -1001,20 +1076,23 @@ final class AuthenticationSession {
     }
 
     func recordRecipeHistory(recipeId: UUID) async {
-        guard let accessToken = tokens?.accessToken else { return }
-
         do {
-            _ = try await client.recordRecipeHistory(accessToken: accessToken, recipeId: recipeId)
+            _ = try await withAuthorizedAccess { accessToken in
+                try await client.recordRecipeHistory(
+                    accessToken: accessToken,
+                    recipeId: recipeId
+                )
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func fetchPlannedMeals() async -> [RemotePlannedMeal] {
-        guard let accessToken = tokens?.accessToken else { return [] }
-
         do {
-            return try await client.plannedMeals(accessToken: accessToken)
+            return try await withAuthorizedAccess { accessToken in
+                try await client.plannedMeals(accessToken: accessToken)
+            }
         } catch {
             errorMessage = error.localizedDescription
             return []
@@ -1022,17 +1100,17 @@ final class AuthenticationSession {
     }
 
     func savePlannedMeal(recipeId: UUID, dayOfWeek: Int, mealSlot: String) async -> RemotePlannedMeal? {
-        guard let accessToken = tokens?.accessToken else { return nil }
-
         do {
-            return try await client.savePlannedMeal(
-                accessToken: accessToken,
-                payload: PlannedMealRequest(
-                    recipeId: recipeId,
-                    dayOfWeek: dayOfWeek,
-                    mealSlot: mealSlot
+            return try await withAuthorizedAccess { accessToken in
+                try await client.savePlannedMeal(
+                    accessToken: accessToken,
+                    payload: PlannedMealRequest(
+                        recipeId: recipeId,
+                        dayOfWeek: dayOfWeek,
+                        mealSlot: mealSlot
+                    )
                 )
-            )
+            }
         } catch {
             errorMessage = error.localizedDescription
             return nil
@@ -1040,10 +1118,13 @@ final class AuthenticationSession {
     }
 
     func deletePlannedMeal(id: UUID) async {
-        guard let accessToken = tokens?.accessToken else { return }
-
         do {
-            try await client.deletePlannedMeal(accessToken: accessToken, plannedMealId: id)
+            try await withAuthorizedAccess { accessToken in
+                try await client.deletePlannedMeal(
+                    accessToken: accessToken,
+                    plannedMealId: id
+                )
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -1051,6 +1132,8 @@ final class AuthenticationSession {
 
     func logout() async {
         let refreshToken = tokens?.refreshToken
+        refreshTask?.cancel()
+        refreshTask = nil
         user = nil
         onboardingProfile = nil
         tokens = nil
@@ -1085,21 +1168,57 @@ final class AuthenticationSession {
     private func updateOnboarding(
         operation: (String) async throws -> OnboardingProfile
     ) async -> Bool {
-        guard let accessToken = tokens?.accessToken else {
-            errorMessage = "Your session has expired. Please sign in again."
-            return false
-        }
-
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            onboardingProfile = try await operation(accessToken)
+            onboardingProfile = try await withAuthorizedAccess(operation: operation)
             return true
         } catch {
             errorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    private func withAuthorizedAccess<Response>(
+        operation: (String) async throws -> Response
+    ) async throws -> Response {
+        guard let accessToken = tokens?.accessToken else {
+            throw AuthenticationError.unauthorized
+        }
+
+        do {
+            return try await operation(accessToken)
+        } catch AuthenticationError.unauthorized {
+            let refreshedTokens = try await refreshSession()
+            return try await operation(refreshedTokens.accessToken)
+        }
+    }
+
+    private func refreshSession() async throws -> TokenResponse {
+        if let refreshTask {
+            return try await refreshTask.value
+        }
+        guard let refreshToken = tokens?.refreshToken else {
+            throw AuthenticationError.unauthorized
+        }
+
+        let task = Task { try await client.refresh(refreshToken: refreshToken) }
+        refreshTask = task
+        defer { refreshTask = nil }
+
+        do {
+            let refreshedTokens = try await task.value
+            try tokenStore.save(refreshedTokens)
+            tokens = refreshedTokens
+            return refreshedTokens
+        } catch {
+            user = nil
+            onboardingProfile = nil
+            tokens = nil
+            tokenStore.clear()
+            throw error
         }
     }
 }

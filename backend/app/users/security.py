@@ -5,6 +5,23 @@ import secrets
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
 PASSWORD_HASH_ITERATIONS = 600_000
 SALT_BYTES = 16
+DUMMY_PASSWORD_SALT = bytes.fromhex("00000000000000000000000000000000")
+
+
+def _dummy_password_hash() -> str:
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        b"seasonly-dummy-password",
+        DUMMY_PASSWORD_SALT,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return (
+        f"{PASSWORD_HASH_ALGORITHM}${PASSWORD_HASH_ITERATIONS}$"
+        f"{DUMMY_PASSWORD_SALT.hex()}${digest.hex()}"
+    )
+
+
+DUMMY_PASSWORD_HASH = _dummy_password_hash()
 
 
 def hash_password(password: str) -> str:

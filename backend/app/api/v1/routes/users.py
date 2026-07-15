@@ -5,6 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.auth.rate_limit import enforce_auth_rate_limit
+from app.core.config import settings
 from app.db.session import get_db_session
 from app.models import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
@@ -21,14 +23,23 @@ from app.users.service import (
 router = APIRouter(prefix="/users")
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def register_user(
     request: Request,
     payload: UserCreate,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> User:
     try:
-        return await create_user(session, payload, infer_coarse_location(request))
+        return await create_user(
+            session,
+            payload,
+            infer_coarse_location(request, trust_headers=settings.trust_proxy_location_headers),
+        )
     except DuplicateUserEmailError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e)) from e
 
@@ -68,7 +79,9 @@ async def refresh_current_user_coarse_location(
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
-    coarse_location = infer_coarse_location(request)
+    coarse_location = infer_coarse_location(
+        request, trust_headers=settings.trust_proxy_location_headers
+    )
     if coarse_location is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

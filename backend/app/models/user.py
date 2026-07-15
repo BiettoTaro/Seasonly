@@ -276,6 +276,17 @@ class UserRefreshToken(Base):
         index=True,
         nullable=False,
     )
+    family_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        index=True,
+        nullable=False,
+        default=uuid.uuid4,
+    )
+    parent_token_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("user_refresh_tokens.id", ondelete="SET NULL"),
+        unique=True,
+    )
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

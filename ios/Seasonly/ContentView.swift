@@ -210,6 +210,10 @@ private struct PasswordResetView: View {
     @State private var email: String
     @State private var hasAttemptedSubmit = false
     @State private var confirmationMessage: String?
+    @State private var resetToken = ""
+    @State private var newPassword = ""
+    @State private var passwordConfirmation = ""
+    @State private var resetComplete = false
 
     init(session: AuthenticationSession, initialEmail: String) {
         self.session = session
@@ -235,28 +239,54 @@ private struct PasswordResetView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                AuthField(title: "Email", error: hasAttemptedSubmit ? emailError : nil) {
-                    TextField("you@example.com", text: $email)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                if confirmationMessage == nil {
+                    AuthField(title: "Email", error: hasAttemptedSubmit ? emailError : nil) {
+                        TextField("you@example.com", text: $email)
+                            .textContentType(.emailAddress)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                } else if !resetComplete {
+                    Text("Check your email, then enter the one-time token and a new password.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    AuthField(title: "Reset token", error: nil) {
+                        TextField("One-time token", text: $resetToken)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+
+                    AuthField(title: "New password", error: nil) {
+                        SecureField("At least 8 characters", text: $newPassword)
+                            .textContentType(.newPassword)
+                    }
+
+                    AuthField(title: "Confirm password", error: nil) {
+                        SecureField("Confirm new password", text: $passwordConfirmation)
+                            .textContentType(.newPassword)
+                    }
                 }
 
-                if let confirmationMessage {
+                if resetComplete, let confirmationMessage {
                     StatusMessage(message: confirmationMessage, isError: false)
                 } else if let errorMessage = session.errorMessage {
                     StatusMessage(message: errorMessage, isError: true)
                 }
 
                 Button {
-                    requestReset()
+                    if confirmationMessage == nil {
+                        requestReset()
+                    } else {
+                        confirmReset()
+                    }
                 } label: {
                     Group {
                         if session.isLoading {
                             ProgressView().tint(.white)
                         } else {
-                            Text("Request Reset")
+                            Text(confirmationMessage == nil ? "Request Reset" : "Reset Password")
                         }
                     }
                     .font(.headline)
@@ -265,7 +295,14 @@ private struct PasswordResetView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(SeasonlyColors.brown)
-                .disabled(session.isLoading || confirmationMessage != nil)
+                .disabled(
+                    session.isLoading
+                        || resetComplete
+                        || (confirmationMessage != nil
+                            && (resetToken.isEmpty
+                                || newPassword.count < 8
+                                || newPassword != passwordConfirmation))
+                )
 
                 Spacer()
             }
@@ -287,6 +324,23 @@ private struct PasswordResetView: View {
 
         Task {
             confirmationMessage = await session.requestPasswordReset(email: email)
+        }
+    }
+
+    private func confirmReset() {
+        session.errorMessage = nil
+        guard !resetToken.isEmpty,
+              newPassword.count >= 8,
+              newPassword == passwordConfirmation else { return }
+
+        Task {
+            if let message = await session.confirmPasswordReset(
+                resetToken: resetToken,
+                newPassword: newPassword
+            ) {
+                confirmationMessage = message
+                resetComplete = true
+            }
         }
     }
 }
