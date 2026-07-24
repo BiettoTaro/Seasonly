@@ -65,10 +65,7 @@ def _profile_country_code(user: User) -> CountryCode:
 
 
 def _profile_allergens(user: User) -> set[Allergen]:
-    if (
-        user.profile is None
-        or user.profile.allergy_status != AllergyProfileStatus.PROVIDED.value
-    ):
+    if user.profile is None or user.profile.allergy_status != AllergyProfileStatus.PROVIDED.value:
         return set()
     return {Allergen(item.allergen) for item in user.profile.allergens}
 

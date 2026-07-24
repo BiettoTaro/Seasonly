@@ -3,11 +3,11 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.refresh_tokens import revoke_user_refresh_tokens
+from app.auth.session_revocation import revoke_user_refresh_tokens
 from app.core.config import settings
 from app.models import User, UserPasswordResetToken
 from app.users.security import hash_password
@@ -44,6 +44,17 @@ async def request_password_reset(
         return None
 
     issued_at = now or datetime.now(UTC)
+    _ = await session.execute(
+        update(UserPasswordResetToken)
+        .where(UserPasswordResetToken.user_id == user.id)
+        .where(UserPasswordResetToken.used_at.is_(None))
+        .values(used_at=issued_at)
+    )
+    _ = await session.execute(
+        delete(UserPasswordResetToken)
+        .where(UserPasswordResetToken.user_id == user.id)
+        .where(UserPasswordResetToken.expires_at <= issued_at)
+    )
     reset_token = generate_password_reset_token()
     session.add(
         UserPasswordResetToken(
@@ -91,13 +102,14 @@ async def _get_valid_password_reset_token_record(
         select(UserPasswordResetToken)
         .options(selectinload(UserPasswordResetToken.user))
         .where(UserPasswordResetToken.token_hash == hash_password_reset_token(reset_token))
+        .with_for_update(of=UserPasswordResetToken)
     )
     token_record = result.scalar_one_or_none()
     if token_record is None:
         raise PasswordResetTokenError("Password reset token is invalid")
     if token_record.used_at is not None:
         raise PasswordResetTokenError("Password reset token has already been used")
-    if token_record.expires_at < now:
+    if token_record.expires_at <= now:
         raise PasswordResetTokenError("Password reset token has expired")
     if not token_record.user.is_active:
         raise PasswordResetTokenError("User is inactive")

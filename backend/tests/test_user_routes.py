@@ -29,12 +29,23 @@ def test_infer_coarse_location_from_supported_headers() -> None:
         }
     )
 
-    location = infer_coarse_location(request)
+    location = infer_coarse_location(request, trust_headers=True)
 
     assert location is not None
     assert location.country_code == "GB"
     assert location.region_code == "LND"
     assert location.source == "coarse_header"
+
+
+def test_coarse_location_headers_are_ignored_unless_trusted() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "headers": [(b"cf-ipcountry", b"gb")],
+        }
+    )
+
+    assert infer_coarse_location(request) is None
 
 
 def test_register_user_validates_email_and_password() -> None:

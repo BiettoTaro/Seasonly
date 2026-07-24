@@ -7,9 +7,9 @@ from app.auth.refresh_tokens import (
     RefreshTokenError,
     create_refresh_token,
     revoke_refresh_token,
-    revoke_user_refresh_tokens,
     rotate_refresh_token,
 )
+from app.auth.session_revocation import revoke_user_refresh_tokens
 from app.auth.tokens import TokenDecodeError, create_access_token, decode_access_token
 
 __all__ = [

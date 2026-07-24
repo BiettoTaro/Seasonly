@@ -25,7 +25,13 @@ class CoarseLocation:
     source: str = "coarse_header"
 
 
-def infer_coarse_location(request: Request) -> CoarseLocation | None:
+def infer_coarse_location(
+    request: Request,
+    *,
+    trust_headers: bool = False,
+) -> CoarseLocation | None:
+    if not trust_headers:
+        return None
     country_code = _first_valid_country_code(request)
     if country_code is None:
         return None

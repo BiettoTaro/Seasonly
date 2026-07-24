@@ -53,10 +53,14 @@ Run linting and formatting checks:
 Run tests:
 
 ```bash
-./scripts/uv run pytest
+./scripts/uv run python -m pytest
 ```
 
 If your shell has a global `UV_PYTHON` override for another project, use `./scripts/uv ...` in this repository. It keeps Seasonly on Python 3.12, uses a repo-local uv cache, and sets `PYTHONPATH=backend` without changing your global uv setup.
+
+If the repository is moved, recreate `.venv` with `uv venv --clear` followed by
+`./scripts/uv sync --all-extras --dev`; virtual-environment command entry points contain absolute
+paths. The module-form test and type-check commands above also avoid stale entry-point shebangs.
 
 ## Docker Development
 
@@ -74,7 +78,17 @@ docker compose up --build
 
 The API will be available at `http://localhost:8001`.
 
-Apply database migrations before using persistence-backed endpoints:
+Compose binds the API and PostgreSQL to `127.0.0.1` by default. Override `API_BIND_HOST` or
+`POSTGRES_BIND_HOST` only when the service must be reachable from another host and the surrounding
+network is appropriately restricted.
+
+Production settings are fail-closed: use `APP_ENV=production`, disable debug mode, enable HTTPS,
+set explicit trusted hosts, provide a unique 32+ character `AUTH_SECRET_KEY`, replace development
+database credentials, and configure SMTP password-reset delivery. Release iOS builds likewise
+require an HTTPS `SEASONLY_API_BASE_URL` build setting.
+
+Apply database migrations before using persistence-backed endpoints. Docker Compose runs this as a
+separate one-shot `migrate` service before starting the API:
 
 ```bash
 ./scripts/uv run alembic upgrade head

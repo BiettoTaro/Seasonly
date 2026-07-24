@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+.uv-cache
+.pytest_cache
+.ruff_cache
+**/__pycache__
+**/*.pyc
+.DS_Store
+DerivedData
+ios
+datasets
+docs

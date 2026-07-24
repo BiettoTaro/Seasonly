@@ -61,6 +61,9 @@ PRODUCE_TYPES: Final = {
     "Fruit": ProduceType.FRUIT,
     "Vegetable": ProduceType.VEGETABLE,
 }
+PRODUCE_TYPE_OVERRIDES: Final = {
+    "watermelon": ProduceType.FRUIT,
+}
 MEALDB_NAME_MAP: Final = {
     "aubergine": "eggplant",
     "coriander": "cilantro",
@@ -150,6 +153,8 @@ def transform_fvlist(data: RawData) -> tuple[list[SeasonalRow], list[str]]:
             produce_name = clean_name(raw_name)
             if not produce_name:
                 raise ValueError(f"Malformed EUFIC produce record: {raw_name!r}")
+            if PRODUCE_TYPE_OVERRIDES.get(produce_name) not in (None, produce_type):
+                continue
 
             for occurrence in occurrences:
                 raw_month, raw_country = occurrence

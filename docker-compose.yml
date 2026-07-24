@@ -6,12 +6,28 @@ services:
     env_file:
       - .env
     ports:
-      - "${API_PORT:-8001}:8001"
+      - "${API_BIND_HOST:-127.0.0.1}:${API_PORT:-8001}:8001"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./backend:/app/backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command: ["alembic", "-c", "/app/alembic.ini", "upgrade", "head"]
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - ./backend:/app/backend
 
   db:
     image: postgres:16-alpine
@@ -21,7 +37,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-seasonly_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-seasonly}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

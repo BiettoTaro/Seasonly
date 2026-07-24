@@ -7,7 +7,7 @@ struct MainAppView: View {
 
     @State private var selectedTab = MainTab.home
     @State private var recipes: [SeasonalRecipe] = []
-    @State private var produce: [SeasonalProduce] = []
+    @State private var produce: SeasonalProduceGroups = .empty
     @State private var favorites: [SeasonalRecipe] = []
     @State private var recentlyViewed: [SeasonalRecipe] = []
     @State private var plannedMeals: [PlannedMeal] = []
@@ -34,7 +34,7 @@ struct MainAppView: View {
                 user: user,
                 regionLabel: regionLabel,
                 recipes: recipes,
-                produce: produce,
+                produce: produce.all,
                 favorites: favorites,
                 plannedMeals: plannedMeals,
                 isLoading: isLoading,
@@ -388,7 +388,7 @@ private struct HomeTabView: View {
 private struct ExploreTabView: View {
     let regionLabel: String
     let recipes: [SeasonalRecipe]
-    let produce: [SeasonalProduce]
+    let produce: SeasonalProduceGroups
     let favorites: [SeasonalRecipe]
     let isLoading: Bool
     let errorMessage: String?
@@ -398,6 +398,7 @@ private struct ExploreTabView: View {
 
     @State private var query = ""
     @State private var scope = ExploreScope.recipes
+    @State private var produceType = ExploreProduceType.fruits
     @State private var inSeasonOnly = true
 
     private var filteredRecipes: [SeasonalRecipe] {
@@ -407,7 +408,7 @@ private struct ExploreTabView: View {
     }
 
     private var filteredProduce: [SeasonalProduce] {
-        produce.filter { item in
+        produceType.items(from: produce).filter { item in
             query.isEmpty || item.name.localizedCaseInsensitiveContains(query)
         }
     }
@@ -446,6 +447,13 @@ private struct ExploreTabView: View {
                             }
                         }
                     } else {
+                        Picker("Produce type", selection: $produceType) {
+                            ForEach(ExploreProduceType.allCases) { type in
+                                Text(type.title).tag(type)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
                         LazyVStack(spacing: 12) {
                             ForEach(filteredProduce) { item in
                                 ProduceDetailCard(item: item, regionLabel: regionLabel)
@@ -473,6 +481,27 @@ private enum ExploreScope: CaseIterable, Identifiable {
 
     var id: Self { self }
     var title: String { self == .recipes ? "Recipes" : "Seasonal ingredients" }
+}
+
+private enum ExploreProduceType: String, CaseIterable, Identifiable {
+    case fruits
+    case vegetables
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fruits: return "Fruit"
+        case .vegetables: return "Vegetables"
+        }
+    }
+
+    func items(from produce: SeasonalProduceGroups) -> [SeasonalProduce] {
+        switch self {
+        case .fruits: return produce.fruits
+        case .vegetables: return produce.vegetables
+        }
+    }
 }
 
 private struct PlannerTabView: View {

@@ -18,3 +18,8 @@ class SeasonalProduceResponse(BaseModel):
     month: Month
     source_name: str
     source_url: str | None
+
+
+class SeasonalProduceGroupedResponse(BaseModel):
+    fruits: list[SeasonalProduceResponse]
+    vegetables: list[SeasonalProduceResponse]
