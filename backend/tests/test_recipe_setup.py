@@ -2,7 +2,15 @@ from typing import cast
 
 from sqlalchemy import Table
 
-from app.models import Ingredient, Recipe, RecipeCategory, RecipeIngredient, RecipeTag, Tag
+from app.models import (
+    Ingredient,
+    Recipe,
+    RecipeAllergenAssessment,
+    RecipeCategory,
+    RecipeIngredient,
+    RecipeTag,
+    Tag,
+)
 
 
 def test_recipe_tables_are_configured() -> None:
@@ -10,6 +18,7 @@ def test_recipe_tables_are_configured() -> None:
     ingredient_table = cast(Table, Ingredient.__table__)
     recipe_table = cast(Table, Recipe.__table__)
     recipe_ingredient_table = cast(Table, RecipeIngredient.__table__)
+    recipe_allergen_assessment_table = cast(Table, RecipeAllergenAssessment.__table__)
     tag_table = cast(Table, Tag.__table__)
     recipe_tag_table = cast(Table, RecipeTag.__table__)
 
@@ -41,6 +50,17 @@ def test_recipe_tables_are_configured() -> None:
     assert {constraint.name for constraint in recipe_ingredient_table.constraints} >= {
         "ck_recipe_ingredients_position"
     }
+    assert recipe_allergen_assessment_table.c.recipe_id.primary_key is True
+    assert recipe_allergen_assessment_table.c.allergen.primary_key is True
+    assert (
+        next(iter(recipe_allergen_assessment_table.c.recipe_id.foreign_keys)).ondelete == "CASCADE"
+    )
+    assert {constraint.name for constraint in recipe_allergen_assessment_table.constraints} >= {
+        "ck_recipe_allergen_assessments_allergen",
+        "ck_recipe_allergen_assessments_status",
+        "ck_recipe_allergen_assessments_method",
+    }
+    assert recipe_allergen_assessment_table.c.status.index is True
     assert cast(object, tag_table.c.normalized_name.unique) is True
     assert recipe_tag_table.c.recipe_id.primary_key is True
     assert recipe_tag_table.c.tag_id.primary_key is True

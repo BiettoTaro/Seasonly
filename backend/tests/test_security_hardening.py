@@ -1,11 +1,14 @@
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.rate_limit import SlidingWindowRateLimiter
 from app.core.config import Settings
+from app.data.enums import RecommendationRankingStrategy
 from app.models import User
 from app.schemas.user import UserUpdate
 from app.users import service as user_service
@@ -36,6 +39,40 @@ def test_production_settings_accept_explicit_secure_configuration() -> None:
     )
 
     assert configured.app_env == "production"
+
+
+@pytest.mark.parametrize(
+    "ranking_mode",
+    [
+        RecommendationRankingStrategy.SEASONAL_TFIDF_V1,
+        RecommendationRankingStrategy.SEASONAL_ONLY_V1,
+    ],
+)
+def test_recommendation_ranking_mode_accepts_supported_values(
+    ranking_mode: RecommendationRankingStrategy,
+) -> None:
+    configured = Settings(recommendation_ranking_mode=ranking_mode)
+
+    assert configured.recommendation_ranking_mode is ranking_mode
+
+
+def test_recommendation_ranking_mode_loads_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECOMMENDATION_RANKING_MODE", "seasonal_only_v1")
+
+    configured = Settings()
+
+    assert configured.recommendation_ranking_mode is RecommendationRankingStrategy.SEASONAL_ONLY_V1
+
+
+def test_recommendation_ranking_mode_rejects_unknown_environment_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECOMMENDATION_RANKING_MODE", "unreviewed_model")
+
+    with pytest.raises(ValidationError, match="recommendation_ranking_mode"):
+        _ = Settings()
 
 
 @pytest.mark.asyncio
@@ -71,7 +108,7 @@ async def test_unknown_user_authentication_runs_dummy_password_check(
     monkeypatch.setattr(user_service, "verify_password", capture_password_check)
 
     authenticated = await user_service.authenticate_user(
-        object(),  # type: ignore[arg-type]
+        cast(AsyncSession, object()),
         "missing@example.com",
         "candidate-password",
     )
@@ -112,7 +149,7 @@ async def test_password_change_revokes_existing_refresh_tokens(
     monkeypatch.setattr(user_service, "get_user", reload_user)
 
     updated = await user_service.update_user(
-        SessionStub(),  # type: ignore[arg-type]
+        cast(AsyncSession, cast(object, SessionStub())),
         user,
         UserUpdate(password="new-password"),
     )

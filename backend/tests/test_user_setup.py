@@ -1,3 +1,5 @@
+import subprocess
+import sys
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import cast
@@ -5,9 +7,9 @@ from typing import cast
 import pytest
 from sqlalchemy import Table
 
-from app.auth import TokenDecodeError, create_access_token, decode_access_token
 from app.auth.password_reset import generate_password_reset_token, hash_password_reset_token
 from app.auth.refresh_tokens import generate_refresh_token, hash_refresh_token
+from app.auth.tokens import TokenDecodeError, create_access_token, decode_access_token
 from app.data.data_key import UserDataKey
 from app.data.data_target import USER_ONBOARDING_PROFILE_TARGET, USER_PROFILE_TARGET
 from app.data.enums import StorageBackendType
@@ -71,6 +73,9 @@ def test_user_tables_are_configured() -> None:
     assert user_protein_preferences_table.c.protein.primary_key is True
     assert cast(object, user_consents_table.c.user_id.index) is True
     assert next(iter(user_consents_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
+    assert {constraint.name for constraint in user_consents_table.constraints} >= {
+        "ck_user_consents_consent_type"
+    }
     assert cast(object, refresh_tokens_table.c.token_hash.unique) is True
     assert cast(object, refresh_tokens_table.c.family_id.index) is True
     assert cast(object, refresh_tokens_table.c.parent_token_id.unique) is True
@@ -156,3 +161,18 @@ def test_password_reset_token_generation_returns_hashed_opaque_token() -> None:
     assert token not in token_hash
     assert len(token_hash) == 64
     assert hash_password_reset_token(token) == token_hash
+
+
+def test_user_service_import_is_independent_of_authentication_import_order() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.users.service import get_user_by_email",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr

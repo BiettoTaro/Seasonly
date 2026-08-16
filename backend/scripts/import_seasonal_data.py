@@ -50,7 +50,7 @@ def read_seasonal_csv(input_path: Path) -> list[SeasonalCsvRow]:
         if tuple(reader.fieldnames or ()) != CSV_FIELDS:
             raise ValueError(f"Unexpected CSV fields: {reader.fieldnames}")
 
-        rows = []
+        rows: list[SeasonalCsvRow] = []
         for line_number, row in enumerate(reader, start=2):
             validated_row = _validate_row(row, line_number=line_number)
             if _matches_type_override(validated_row):
@@ -152,7 +152,7 @@ async def import_rows(rows: list[SeasonalCsvRow]) -> tuple[int, int]:
         )
         produce_ids = {
             (name, produce_type): produce_id
-            for produce_id, name, produce_type in (row.tuple() for row in produce_result.all())
+            for produce_id, name, produce_type in produce_result.tuples().all()
         }
 
         season_values = [

@@ -62,3 +62,11 @@ Backend key: `themealdb_recipes`.
 ## Recommendation Data
 
 Initial backend key: `recommendation_events`.
+
+Consent-gated production events are stored in PostgreSQL and documented in
+[`recommendation-events.md`](recommendation-events.md). Deterministic synthetic personas are a
+separate development source documented in [`synthetic-personas.md`](synthetic-personas.md).
+Synthetic interactions are restricted to pipeline tests, prototype training and clearly labelled
+demonstrations; they are not real-user evaluation data. Brief private-pilot events are likewise
+excluded from current ML training and effectiveness claims under
+[`private-pilot-and-synthetic-ml.md`](private-pilot-and-synthetic-ml.md).

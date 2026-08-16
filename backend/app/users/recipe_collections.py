@@ -4,8 +4,10 @@ from fastapi import HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.data.enums import RecommendationEventSource, RecommendationEventType
 from app.models import Recipe, UserPlannedMeal, UserRecipeFavourite, UserRecipeHistory
 from app.models.user_recipe import utc_now
+from app.recommendations.events import record_recommendation_event_if_consented
 from app.schemas.user_recipe import (
     FavouriteRecipeResponse,
     MealSlot,
@@ -48,6 +50,13 @@ async def add_favourite(
     if favourite is None:
         favourite = UserRecipeFavourite(user_id=user_id, recipe_id=recipe_id)
         session.add(favourite)
+        _ = await record_recommendation_event_if_consented(
+            session,
+            user_id=user_id,
+            recipe_id=recipe_id,
+            event_type=RecommendationEventType.FAVOURITE,
+            source=RecommendationEventSource.RECIPE_DETAIL,
+        )
         await session.commit()
         await session.refresh(favourite)
     return FavouriteRecipeResponse(recipe=_recipe_summary(recipe), created_at=favourite.created_at)
@@ -59,12 +68,22 @@ async def remove_favourite(
     user_id: uuid.UUID,
     recipe_id: uuid.UUID,
 ) -> None:
-    _ = await session.execute(
-        delete(UserRecipeFavourite).where(
+    result = await session.execute(
+        delete(UserRecipeFavourite)
+        .where(
             UserRecipeFavourite.user_id == user_id,
             UserRecipeFavourite.recipe_id == recipe_id,
         )
+        .returning(UserRecipeFavourite.recipe_id)
     )
+    if result.scalar_one_or_none() is not None:
+        _ = await record_recommendation_event_if_consented(
+            session,
+            user_id=user_id,
+            recipe_id=recipe_id,
+            event_type=RecommendationEventType.UNFAVOURITE,
+            source=RecommendationEventSource.RECIPE_DETAIL,
+        )
     await session.commit()
 
 
@@ -103,6 +122,13 @@ async def record_history(
         session.add(history)
     else:
         history.viewed_at = utc_now()
+    _ = await record_recommendation_event_if_consented(
+        session,
+        user_id=user_id,
+        recipe_id=recipe_id,
+        event_type=RecommendationEventType.OPEN,
+        source=RecommendationEventSource.RECIPE_DETAIL,
+    )
     await session.commit()
     await session.refresh(history)
     return RecipeHistoryResponse(recipe=_recipe_summary(recipe), viewed_at=history.viewed_at)
@@ -156,6 +182,13 @@ async def add_planned_meal(
         meal_slot=payload.meal_slot.value,
     )
     session.add(meal)
+    _ = await record_recommendation_event_if_consented(
+        session,
+        user_id=user_id,
+        recipe_id=payload.recipe_id,
+        event_type=RecommendationEventType.PLAN,
+        source=RecommendationEventSource.RECIPE_DETAIL,
+    )
     await session.commit()
     await session.refresh(meal)
     return _planned_meal_response(meal, recipe)
@@ -171,6 +204,13 @@ async def remove_planned_meal(
     if meal is None or meal.user_id != user_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Planned meal not found")
     await session.delete(meal)
+    _ = await record_recommendation_event_if_consented(
+        session,
+        user_id=user_id,
+        recipe_id=meal.recipe_id,
+        event_type=RecommendationEventType.UNPLAN,
+        source=RecommendationEventSource.PLANNER,
+    )
     await session.commit()
 
 

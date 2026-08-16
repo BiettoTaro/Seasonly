@@ -21,7 +21,7 @@ async def create_user(
     payload: UserCreate,
     coarse_location: CoarseLocation | None = None,
 ) -> User:
-    user = User(email=str(payload.email).lower(), password_hash=hash_password(payload.password))
+    user = User(email=payload.email.lower(), password_hash=hash_password(payload.password))
     if payload.profile is not None or coarse_location is not None:
         user.profile = _build_profile(payload.profile, coarse_location)
 
@@ -50,6 +50,7 @@ async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
         .options(
             selectinload(User.profile).selectinload(UserProfile.allergens),
             selectinload(User.profile).selectinload(UserProfile.dietary_rules),
+            selectinload(User.profile).selectinload(UserProfile.cuisine_preferences),
         )
         .where(User.id == user_id)
     )
@@ -62,6 +63,7 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
         .options(
             selectinload(User.profile).selectinload(UserProfile.allergens),
             selectinload(User.profile).selectinload(UserProfile.dietary_rules),
+            selectinload(User.profile).selectinload(UserProfile.cuisine_preferences),
         )
         .where(User.email == email.lower())
     )
@@ -70,7 +72,7 @@ async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
 
 async def update_user(session: AsyncSession, user: User, payload: UserUpdate) -> User:
     if payload.email is not None:
-        user.email = str(payload.email).lower()
+        user.email = payload.email.lower()
     if payload.password is not None:
         user.password_hash = hash_password(payload.password)
         await revoke_user_refresh_tokens(session, user)
@@ -91,20 +93,13 @@ async def apply_coarse_location(
     user: User,
     coarse_location: CoarseLocation,
 ) -> User:
-    if user.profile is None:
-        user.profile = UserProfile()
-
-    user.profile.country_code = coarse_location.country_code
-    user.profile.region_code = coarse_location.region_code
-    user.profile.location_source = coarse_location.source
+    profile = _get_or_create_profile(user)
+    profile.country_code = coarse_location.country_code
+    profile.region_code = coarse_location.region_code
+    profile.location_source = coarse_location.source
 
     await session.commit()
     return await get_user(session, user.id) or user
-
-
-async def delete_user(session: AsyncSession, user: User) -> None:
-    await session.delete(user)
-    await session.commit()
 
 
 def _build_profile(
@@ -137,15 +132,22 @@ def _build_profile(
     )
 
 
+def _get_or_create_profile(user: User) -> UserProfile:
+    profile = user.profile
+    if profile is None:
+        profile = UserProfile()
+        user.profile = profile
+    return profile
+
+
 def _apply_profile_update(user: User, payload: UserProfileUpdate) -> None:
-    if user.profile is None:
-        user.profile = UserProfile()
+    profile = _get_or_create_profile(user)
 
     if "display_name" in payload.model_fields_set:
-        user.profile.display_name = payload.display_name
+        profile.display_name = payload.display_name
     if "country_code" in payload.model_fields_set:
-        user.profile.country_code = payload.country_code
+        profile.country_code = payload.country_code
     if "region_code" in payload.model_fields_set:
-        user.profile.region_code = payload.region_code
+        profile.region_code = payload.region_code
     if "location_source" in payload.model_fields_set:
-        user.profile.location_source = payload.location_source
+        profile.location_source = payload.location_source

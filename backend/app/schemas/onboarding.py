@@ -161,6 +161,8 @@ class OnboardingCompletionErrorResponse(BaseModel):
 class CountryReferenceResponse(BaseModel):
     code: CountryCode
     name: str
+    seasonal_data_available: bool
+    availability_message: str | None = None
 
 
 class CuisineReferenceResponse(BaseModel):

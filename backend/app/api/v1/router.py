@@ -1,6 +1,17 @@
 from fastapi import APIRouter
 
-from app.api.v1.routes import auth, data, health, me, onboarding, produce, recipes, reference, users
+from app.api.v1.routes import (
+    auth,
+    data,
+    health,
+    me,
+    onboarding,
+    produce,
+    recipes,
+    recommendations,
+    reference,
+    users,
+)
 
 router = APIRouter()
 router.include_router(auth.router, tags=["auth"])
@@ -10,5 +21,6 @@ router.include_router(me.router, tags=["me"])
 router.include_router(onboarding.router, tags=["onboarding"])
 router.include_router(produce.router, tags=["produce"])
 router.include_router(recipes.router, tags=["recipes"])
+router.include_router(recommendations.router, tags=["recommendations"])
 router.include_router(reference.router, tags=["reference"])
 router.include_router(users.router, tags=["users"])

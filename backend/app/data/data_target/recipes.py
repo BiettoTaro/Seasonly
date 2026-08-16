@@ -32,6 +32,11 @@ RECIPE_TAGS_TARGET = DataTarget(
     name="recipe_tags",
     description="Recipe-to-tag relationships used for filtering and derived features.",
 )
+RECIPE_ALLERGEN_ASSESSMENTS_TARGET = DataTarget(
+    target_type=DataTargetType.NORMALIZED_TABLE,
+    name="recipe_allergen_assessments",
+    description=("Versioned per-recipe allergen assessments used by fail-closed safety filtering."),
+)
 
 THEMEALDB_RECIPE_TARGETS: tuple[DataTarget, ...] = (
     RECIPE_CATEGORIES_TARGET,
@@ -40,4 +45,5 @@ THEMEALDB_RECIPE_TARGETS: tuple[DataTarget, ...] = (
     RECIPE_INGREDIENTS_TARGET,
     TAGS_TARGET,
     RECIPE_TAGS_TARGET,
+    RECIPE_ALLERGEN_ASSESSMENTS_TARGET,
 )

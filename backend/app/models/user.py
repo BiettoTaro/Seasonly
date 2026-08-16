@@ -234,7 +234,7 @@ class UserConsent(Base):
     __tablename__: str = "user_consents"
     __table_args__: tuple[SchemaItem, ...] = (
         CheckConstraint(
-            "consent_type IN ('allergy_storage')",
+            "consent_type IN ('allergy_storage', 'personalization')",
             name="ck_user_consents_consent_type",
         ),
     )

@@ -1,4 +1,26 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+private struct SeasonlyJSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 
 struct MainAppView: View {
     @Bindable var session: AuthenticationSession
@@ -137,56 +159,11 @@ struct MainAppView: View {
     }
 
     private func fetchPreferredSeasonalRecipes(pageSize: Int) async -> SeasonalRecipeList? {
-        let preferredAreas = selectedCuisineAreas
-        guard !preferredAreas.isEmpty else {
-            return await session.fetchSeasonalRecipes(pageSize: pageSize)
-        }
-
-        var countryCode = countryCode ?? "GB"
-        var month = Calendar.current.component(.month, from: Date())
-        var total = 0
-        var mergedRecipes: [SeasonalRecipe] = []
-        var seenRecipeIDs = Set<UUID>()
-
-        for area in preferredAreas {
-            guard let recipeList = await session.fetchSeasonalRecipes(pageSize: pageSize, area: area) else {
-                continue
-            }
-
-            countryCode = recipeList.countryCode
-            month = recipeList.month
-            total += recipeList.total
-
-            for recipe in recipeList.items where seenRecipeIDs.insert(recipe.id).inserted {
-                mergedRecipes.append(recipe)
-            }
-        }
-
-        mergedRecipes.sort { first, second in
-            if first.matchedSeasonalProduceCount != second.matchedSeasonalProduceCount {
-                return first.matchedSeasonalProduceCount > second.matchedSeasonalProduceCount
-            }
-            return first.name.localizedCaseInsensitiveCompare(second.name) == .orderedAscending
-        }
-
-        return SeasonalRecipeList(
-            countryCode: countryCode,
-            month: month,
-            page: 1,
-            pageSize: pageSize,
-            total: total,
-            items: Array(mergedRecipes.prefix(pageSize))
-        )
-    }
-
-    private var selectedCuisineAreas: [String] {
-        guard session.onboardingProfile?.cuisinePreferenceStatus == "provided" else { return [] }
-        return session.onboardingProfile?.cuisineAreas ?? []
+        await session.fetchRecommendationFeed(limit: pageSize)
     }
 
     private func emptyRecipeMessage(for recipeList: SeasonalRecipeList) -> String {
-        let cuisineText = selectedCuisineAreas.isEmpty ? "" : " matching \(selectedCuisineAreas.joined(separator: ", "))"
-        return "The seasonal recipe endpoint returned 0 recipes using \(recipeList.countryCode) seasonal produce in month \(recipeList.month)\(cuisineText)."
+        "No safe seasonal recommendations are available for \(recipeList.countryCode) in month \(recipeList.month)."
     }
 
     private func openRecipe(_ recipe: SeasonalRecipe) {
@@ -1035,11 +1012,20 @@ private struct ProfileSettingsView: View {
     @State private var allergyStatus = "not_provided"
     @State private var selectedAllergens = Set<String>()
     @State private var allergyConsent = false
+    @State private var personalizationEnabled = false
+    @State private var hasLoadedPersonalizationConsent = false
     @State private var selectedDietaryRules = Set<String>()
     @State private var selectedCuisines: [String] = []
     @State private var selectedProteins: [String] = []
     @State private var saveMessage: String?
     @State private var isSaving = false
+    @State private var showDataExportPrompt = false
+    @State private var exportPassword = ""
+    @State private var exportDocument: SeasonlyJSONDocument?
+    @State private var showDataExporter = false
+    @State private var showAccountDeletionPrompt = false
+    @State private var deletionPassword = ""
+    @State private var deletionConfirmation = ""
 
     var body: some View {
         NavigationStack {
@@ -1062,7 +1048,12 @@ private struct ProfileSettingsView: View {
                     Picker("Country", selection: countrySelection) {
                         Text("Select country").tag("")
                         ForEach(countries) { country in
-                            Text(country.name).tag(country.code)
+                            Text(country.displayName)
+                                .foregroundStyle(
+                                    country.seasonalDataAvailable ? .primary : .secondary
+                                )
+                                .tag(country.code)
+                                .disabled(!country.seasonalDataAvailable)
                         }
                     }
                     TextField("Region code (optional)", text: regionSelection)
@@ -1138,8 +1129,36 @@ private struct ProfileSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Section("Data and privacy") {
-                    Text("Use these controls to correct the profile data used for filtering and recommendations. Data export, history clearing and account deletion still need dedicated backend endpoints before shipping.")
-                        .font(.subheadline)
+                    Toggle(
+                        "Personalized recommendations",
+                        isOn: $personalizationEnabled
+                    )
+                    .disabled(!hasLoadedPersonalizationConsent)
+                    Text(
+                        "When enabled, Seasonly stores recommendation interactions for up to 12 months. Turning this off stops collection and deletes identifiable recommendation events. Saved recipes, history and planned meals remain available."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Button {
+                        exportPassword = ""
+                        showDataExportPrompt = true
+                    } label: {
+                        Label("Export my data", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(session.isLoading)
+                    Button(role: .destructive) {
+                        deletionPassword = ""
+                        deletionConfirmation = ""
+                        showAccountDeletionPrompt = true
+                    } label: {
+                        Label("Delete my account", systemImage: "trash")
+                    }
+                    .disabled(session.isLoading)
+                    Text(
+                        "Export creates a JSON copy of your Seasonly data. Account deletion is immediate and permanent. Both actions require your current password."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 Section("About") {
                     Text("Recipe and seasonal data attribution will use backend source metadata where available.")
@@ -1151,7 +1170,11 @@ private struct ProfileSettingsView: View {
                     Section {
                         Text(saveMessage)
                             .font(.subheadline)
-                            .foregroundStyle(saveMessage == "Saved" ? .green : .red)
+                            .foregroundStyle(
+                                ["Saved", "Data export saved"].contains(saveMessage)
+                                    ? .green
+                                    : .red
+                            )
                     }
                 }
             }
@@ -1171,12 +1194,69 @@ private struct ProfileSettingsView: View {
                             Text("Done")
                         }
                     }
-                    .disabled(!canSaveProfile || isSaving || session.isLoading)
+                    .disabled(
+                        !canSaveProfile
+                            || !hasLoadedPersonalizationConsent
+                            || isSaving
+                            || session.isLoading
+                    )
                 }
             }
             .task {
                 hydrate()
                 await loadReferences()
+                guard await session.loadPersonalizationConsent() else {
+                    saveMessage = session.errorMessage
+                        ?? "Personalization preference could not be loaded"
+                    return
+                }
+                personalizationEnabled = session.personalizationConsent?.active == true
+                hasLoadedPersonalizationConsent = true
+            }
+            .alert("Export your data", isPresented: $showDataExportPrompt) {
+                SecureField("Current password", text: $exportPassword)
+                Button("Cancel", role: .cancel) {
+                    exportPassword = ""
+                }
+                Button("Export") {
+                    Task { await prepareDataExport() }
+                }
+                .disabled(exportPassword.count < 8)
+            } message: {
+                Text("Re-enter your password to create a downloadable JSON file.")
+            }
+            .alert("Permanently delete account?", isPresented: $showAccountDeletionPrompt) {
+                SecureField("Current password", text: $deletionPassword)
+                TextField("Type DELETE", text: $deletionConfirmation)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                Button("Cancel", role: .cancel) {
+                    clearDeletionFields()
+                }
+                Button("Delete permanently", role: .destructive) {
+                    Task { await permanentlyDeleteAccount() }
+                }
+                .disabled(
+                    deletionPassword.count < 8 || deletionConfirmation != "DELETE"
+                )
+            } message: {
+                Text(
+                    "This removes your profile, preferences, consents, saved recipes, history, plans, recommendation events and sessions. It cannot be undone."
+                )
+            }
+            .fileExporter(
+                isPresented: $showDataExporter,
+                document: exportDocument,
+                contentType: .json,
+                defaultFilename: "seasonly-user-data-export"
+            ) { result in
+                switch result {
+                case .success:
+                    saveMessage = "Data export saved"
+                case .failure(let error):
+                    saveMessage = error.localizedDescription
+                }
+                exportDocument = nil
             }
         }
     }
@@ -1259,7 +1339,7 @@ private struct ProfileSettingsView: View {
     }
 
     private func saveAndDismiss() async {
-        guard canSaveProfile else { return }
+        guard canSaveProfile, hasLoadedPersonalizationConsent else { return }
         isSaving = true
         saveMessage = nil
         pruneProteins()
@@ -1316,7 +1396,44 @@ private struct ProfileSettingsView: View {
             return
         }
 
+        guard await session.updatePersonalizationConsent(
+            enabled: personalizationEnabled
+        ) else {
+            saveMessage = session.errorMessage ?? "Personalization preference save failed"
+            return
+        }
+
         dismiss()
+    }
+
+    private func prepareDataExport() async {
+        let password = exportPassword
+        exportPassword = ""
+        guard let data = await session.exportUserData(currentPassword: password) else {
+            saveMessage = session.errorMessage ?? "Data export failed"
+            return
+        }
+        exportDocument = SeasonlyJSONDocument(data: data)
+        showDataExporter = true
+    }
+
+    private func permanentlyDeleteAccount() async {
+        let password = deletionPassword
+        let confirmation = deletionConfirmation
+        clearDeletionFields()
+        guard await session.deleteAccount(
+            currentPassword: password,
+            confirmation: confirmation
+        ) else {
+            saveMessage = session.errorMessage ?? "Account deletion failed"
+            return
+        }
+        dismiss()
+    }
+
+    private func clearDeletionFields() {
+        deletionPassword = ""
+        deletionConfirmation = ""
     }
 
     private func pruneProteins() {
@@ -1327,7 +1444,7 @@ private struct ProfileSettingsView: View {
     private func detectCurrentLocation() {
         locationDetector.detect { countryCode, regionCode in
             let normalizedCountryCode = normalizeDetectedCountryCode(countryCode)
-            guard countries.isEmpty || countries.contains(where: { $0.code == normalizedCountryCode }) else {
+            guard countries.isEmpty || countryHasSeasonalData(normalizedCountryCode) else {
                 if let localeCountry = supportedLocaleCountryCode() {
                     selectedCountryCode = localeCountry
                     selectedRegionCode = ""
@@ -1359,7 +1476,13 @@ private struct ProfileSettingsView: View {
     private func supportedLocaleCountryCode() -> String? {
         guard let localeIdentifier = Locale.current.region?.identifier else { return nil }
         let localeCountry = normalizeDetectedCountryCode(localeIdentifier)
-        return countries.contains(where: { $0.code == localeCountry }) ? localeCountry : nil
+        return countryHasSeasonalData(localeCountry) ? localeCountry : nil
+    }
+
+    private func countryHasSeasonalData(_ countryCode: String) -> Bool {
+        countries.contains {
+            $0.code == countryCode && $0.seasonalDataAvailable
+        }
     }
 
     private func normalizeDetectedCountryCode(_ value: String) -> String {

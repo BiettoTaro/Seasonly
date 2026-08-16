@@ -118,6 +118,23 @@ def dietary_patterns(terms: Iterable[str]) -> list[str]:
     return [_word_pattern(term) for term in sorted(set(terms), key=len, reverse=True)]
 
 
+def ingredient_names_contain_terms(
+    ingredient_names: Iterable[str],
+    terms: Iterable[str],
+) -> bool:
+    normalized_names = [" ".join(name.casefold().split()) for name in ingredient_names]
+    return any(
+        _ingredient_contains_term(ingredient_name, term)
+        for ingredient_name in normalized_names
+        for term in terms
+    )
+
+
 def _word_pattern(term: str) -> str:
     escaped = re.escape(term).replace(r"\ ", r"\s+")
     return rf"(^|[^[:alnum:]]){escaped}([^[:alnum:]]|$)"
+
+
+def _ingredient_contains_term(ingredient_name: str, term: str) -> bool:
+    escaped = re.escape(term).replace(r"\ ", r"\s+")
+    return re.search(rf"(?<!\w){escaped}(?!\w)", ingredient_name) is not None

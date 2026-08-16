@@ -30,7 +30,24 @@ def test_themealdb_recipe_targets_match_persisted_tables() -> None:
         "recipe_ingredients",
         "tags",
         "recipe_tags",
+        "recipe_allergen_assessments",
     }
+
+
+def test_recommendation_catalog_keeps_pilot_events_out_of_ml_evidence() -> None:
+    registration = get_data_registration(DataKey.RECOMMENDATION_EVENTS)
+    targets_by_name = {target.name: target for target in registration.targets}
+
+    assert registration.metadata.notes is not None
+    assert "brief private-pilot activity" in registration.metadata.notes
+    assert targets_by_name["recommendation_events"].description is not None
+    assert (
+        "excluded from current ML training" in targets_by_name["recommendation_events"].description
+    )
+    assert targets_by_name["recommendation_features"].description is not None
+    assert (
+        "only from explicitly synthetic" in targets_by_name["recommendation_features"].description
+    )
 
 
 def test_unknown_data_key_raises_value_error() -> None:

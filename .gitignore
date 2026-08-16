@@ -16,6 +16,7 @@ env/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.ipynb_checkpoints/
 .coverage
 htmlcov/
 dist/
@@ -32,6 +33,10 @@ datasets/raw/eufic_*.csv
 datasets/raw/eufic_*.json
 datasets/processed/eufic_*.csv
 datasets/cache/
+datasets/synthetic/*
+!datasets/synthetic/README.md
+artifacts/recommendations/*
+!artifacts/recommendations/README.md
 
 # Docker/Postgres
 postgres-data/

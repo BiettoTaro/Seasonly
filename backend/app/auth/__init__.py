@@ -1,27 +1,5 @@
-from app.auth.password_reset import (
-    PasswordResetTokenError,
-    request_password_reset,
-    reset_password,
-)
-from app.auth.refresh_tokens import (
-    RefreshTokenError,
-    create_refresh_token,
-    revoke_refresh_token,
-    rotate_refresh_token,
-)
-from app.auth.session_revocation import revoke_user_refresh_tokens
-from app.auth.tokens import TokenDecodeError, create_access_token, decode_access_token
+"""Authentication domain package.
 
-__all__ = [
-    "RefreshTokenError",
-    "TokenDecodeError",
-    "create_access_token",
-    "create_refresh_token",
-    "decode_access_token",
-    "PasswordResetTokenError",
-    "request_password_reset",
-    "reset_password",
-    "revoke_refresh_token",
-    "revoke_user_refresh_tokens",
-    "rotate_refresh_token",
-]
+Import concrete authentication operations from their defining modules. Keeping package
+initialization side-effect free prevents circular imports with the user service.
+"""

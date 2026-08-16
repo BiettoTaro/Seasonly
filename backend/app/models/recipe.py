@@ -142,6 +142,11 @@ class Recipe(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    allergen_assessments: Mapped[list["RecipeAllergenAssessment"]] = relationship(
+        back_populates="recipe",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class RecipeIngredient(Base):
@@ -169,6 +174,45 @@ class RecipeIngredient(Base):
 
     recipe: Mapped[Recipe] = relationship(back_populates="ingredients")
     ingredient: Mapped[Ingredient | None] = relationship(back_populates="recipe_ingredients")
+
+
+class RecipeAllergenAssessment(Base):
+    __tablename__: str = "recipe_allergen_assessments"
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(
+            "allergen IN ("
+            + "'celery', 'cereals_containing_gluten', 'crustaceans', 'eggs', 'fish', "
+            + "'lupin', 'milk', 'molluscs', 'mustard', 'peanuts', 'sesame', 'soybeans', "
+            + "'sulphur_dioxide_and_sulphites', 'tree_nuts'"
+            + ")",
+            name="ck_recipe_allergen_assessments_allergen",
+        ),
+        CheckConstraint(
+            "status IN ('contains', 'does_not_contain', 'unknown')",
+            name="ck_recipe_allergen_assessments_status",
+        ),
+        CheckConstraint(
+            "method IN ('unassessed', 'rules', 'reviewed_dataset', 'manual_review')",
+            name="ck_recipe_allergen_assessments_method",
+        ),
+    )
+
+    recipe_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("recipes.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    allergen: Mapped[str] = mapped_column(String(80), primary_key=True)
+    status: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
+    method: Mapped[str] = mapped_column(String(30), nullable=False)
+    assessment_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    assessed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        nullable=False,
+    )
+
+    recipe: Mapped[Recipe] = relationship(back_populates="allergen_assessments")
 
 
 class Tag(Base):

@@ -8,7 +8,11 @@ RECOMMENDATION_EVENT_REGISTRATION = DataSourceRegistration(
         data_key=DataKey.RECOMMENDATION_EVENTS,
         domain=DataDomain.RECOMMENDATIONS,
         name="Recommendation events",
-        notes="Internal event data for future recommendation features.",
+        notes=(
+            "Consent-gated production events support live personalization only in the current "
+            "phase. Offline ML accepts explicitly synthetic datasets and must not treat brief "
+            "private-pilot activity as training or effectiveness evidence."
+        ),
     ),
     targets=RECOMMENDATION_EVENT_TARGETS,
 )
