@@ -7,11 +7,19 @@ from fastapi.testclient import TestClient
 from starlette.requests import Request
 
 from app.api.v1.routes import auth as auth_routes
+from app.api.v1.routes import users as user_routes
 from app.auth.dependencies import get_current_user
 from app.db.session import get_db_session
 from app.main import create_app
 from app.models import User, UserProfile
+from app.schemas.privacy import (
+    UserDataExport,
+    UserDataExportAccount,
+    UserDataExportRecipeActivity,
+    UserDataExportSecurityRecords,
+)
 from app.users.geolocation import infer_coarse_location
+from app.users.privacy import InvalidCurrentPasswordError
 
 
 async def _dummy_db_session() -> AsyncGenerator[object, None]:
@@ -216,3 +224,234 @@ def test_password_reset_confirm_rejects_short_password() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_data_export_requires_current_password_and_sets_download_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app()
+    current_user = User(
+        id=uuid.uuid4(),
+        email="user@example.com",
+        password_hash="unused",
+        is_active=True,
+        is_verified=False,
+        created_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+    )
+
+    async def override_current_user() -> User:
+        return current_user
+
+    async def override_export(
+        session: object,
+        *,
+        user: User,
+        current_password: str,
+    ) -> UserDataExport:
+        assert session is not None
+        assert user is current_user
+        assert current_password == "correct-password"
+        return UserDataExport(
+            format_version="seasonly-user-data-v1",
+            exported_at=datetime(2026, 7, 24, 12, 0, tzinfo=UTC),
+            account=UserDataExportAccount(
+                id=user.id,
+                email=user.email,
+                is_active=user.is_active,
+                is_verified=user.is_verified,
+                created_at=user.created_at,
+                updated_at=user.updated_at,
+            ),
+            profile=None,
+            consents=[],
+            recipe_activity=UserDataExportRecipeActivity(
+                favourites=[],
+                history=[],
+                planned_meals=[],
+            ),
+            recommendation_events=[],
+            security_records=UserDataExportSecurityRecords(
+                refresh_sessions=[],
+                password_reset_requests=[],
+            ),
+        )
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_db_session] = _dummy_db_session
+    monkeypatch.setattr(user_routes, "export_user_data", override_export)
+
+    response = TestClient(app).post(
+        "/api/v1/users/me/data-export",
+        json={"current_password": "correct-password"},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["content-disposition"] == (
+        'attachment; filename="seasonly-user-data-export.json"'
+    )
+    assert response.json()["format_version"] == "seasonly-user-data-v1"
+
+
+def test_data_export_rejects_incorrect_current_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app()
+    current_user = User(
+        id=uuid.uuid4(),
+        email="user@example.com",
+        password_hash="unused",
+        is_active=True,
+        is_verified=False,
+        created_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+    )
+
+    async def override_current_user() -> User:
+        return current_user
+
+    async def reject_export(*args: object, **kwargs: object) -> None:
+        _ = args, kwargs
+        raise InvalidCurrentPasswordError("Current password is incorrect")
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_db_session] = _dummy_db_session
+    monkeypatch.setattr(user_routes, "export_user_data", reject_export)
+
+    response = TestClient(app).post(
+        "/api/v1/users/me/data-export",
+        json={"current_password": "wrong-password"},
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Current password is incorrect"}
+
+
+def test_account_deletion_requires_exact_confirmation() -> None:
+    app = create_app()
+    current_user = User(
+        id=uuid.uuid4(),
+        email="user@example.com",
+        password_hash="unused",
+        is_active=True,
+        is_verified=False,
+        created_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+    )
+
+    async def override_current_user() -> User:
+        return current_user
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_db_session] = _dummy_db_session
+
+    response = TestClient(app).request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"current_password": "correct-password", "confirmation": "delete"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_account_deletion_reconfirms_password_and_returns_no_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app()
+    current_user = User(
+        id=uuid.uuid4(),
+        email="user@example.com",
+        password_hash="unused",
+        is_active=True,
+        is_verified=False,
+        created_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+    )
+    deleted_users: list[uuid.UUID] = []
+
+    async def override_current_user() -> User:
+        return current_user
+
+    async def override_delete(
+        session: object,
+        *,
+        user: User,
+        current_password: str,
+    ) -> None:
+        assert session is not None
+        assert current_password == "correct-password"
+        deleted_users.append(user.id)
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_db_session] = _dummy_db_session
+    monkeypatch.setattr(user_routes, "delete_user_data", override_delete)
+
+    response = TestClient(app).request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"current_password": "correct-password", "confirmation": "DELETE"},
+    )
+
+    assert response.status_code == 204
+    assert deleted_users == [current_user.id]
+
+
+def test_account_deletion_rejects_incorrect_current_password(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = create_app()
+    current_user = User(
+        id=uuid.uuid4(),
+        email="user@example.com",
+        password_hash="unused",
+        is_active=True,
+        is_verified=False,
+        created_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+        updated_at=datetime(2026, 6, 5, 12, 0, tzinfo=UTC),
+    )
+
+    async def override_current_user() -> User:
+        return current_user
+
+    async def reject_delete(*args: object, **kwargs: object) -> None:
+        _ = args, kwargs
+        raise InvalidCurrentPasswordError("Current password is incorrect")
+
+    app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_db_session] = _dummy_db_session
+    monkeypatch.setattr(user_routes, "delete_user_data", reject_delete)
+
+    response = TestClient(app).request(
+        "DELETE",
+        "/api/v1/users/me",
+        json={"current_password": "wrong-password", "confirmation": "DELETE"},
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {"detail": "Current password is incorrect"}
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "payload"),
+    [
+        (
+            "POST",
+            "/api/v1/users/me/data-export",
+            {"current_password": "correct-password"},
+        ),
+        (
+            "DELETE",
+            "/api/v1/users/me",
+            {"current_password": "correct-password", "confirmation": "DELETE"},
+        ),
+    ],
+)
+def test_privacy_controls_require_authentication(
+    method: str,
+    path: str,
+    payload: dict[str, str],
+) -> None:
+    response = TestClient(create_app()).request(method, path, json=payload)
+
+    assert response.status_code == 401

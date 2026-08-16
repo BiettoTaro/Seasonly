@@ -29,6 +29,25 @@ services:
       db:
         condition: service_healthy
 
+  recommendation-maintenance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    command:
+      [
+        "python",
+        "backend/scripts/purge_expired_recommendation_events.py",
+        "--loop",
+        "--interval-seconds",
+        "86400",
+      ]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped

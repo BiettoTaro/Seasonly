@@ -65,8 +65,22 @@ struct OnboardingProfile: Codable, Sendable {
 struct CountryReference: Codable, Identifiable, Sendable {
     let code: String
     let name: String
+    let seasonalDataAvailable: Bool
+    let availabilityMessage: String?
 
     var id: String { code }
+
+    var displayName: String {
+        guard let availabilityMessage, !seasonalDataAvailable else { return name }
+        return "\(name) (\(availabilityMessage))"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case name
+        case seasonalDataAvailable = "seasonal_data_available"
+        case availabilityMessage = "availability_message"
+    }
 }
 
 struct CuisineReference: Codable, Identifiable, Sendable {
@@ -95,6 +109,26 @@ struct SeasonalRecipeList: Codable, Sendable {
         case month
         case page
         case pageSize = "page_size"
+        case total
+        case items
+    }
+}
+
+struct RecommendationFeed: Codable, Sendable {
+    let slateId: UUID
+    let countryCode: String
+    let month: Int
+    let rankingStrategy: String
+    let personalized: Bool
+    let total: Int
+    let items: [SeasonalRecipe]
+
+    enum CodingKeys: String, CodingKey {
+        case slateId = "slate_id"
+        case countryCode = "country_code"
+        case month
+        case rankingStrategy = "ranking_strategy"
+        case personalized
         case total
         case items
     }
@@ -204,6 +238,54 @@ struct RemotePlannedMeal: Codable, Identifiable, Sendable {
     }
 }
 
+struct PersonalizationConsent: Codable, Sendable {
+    let active: Bool
+    let noticeVersion: String
+    let grantedAt: Date?
+    let retentionDays: Int
+
+    enum CodingKeys: String, CodingKey {
+        case active
+        case noticeVersion = "notice_version"
+        case grantedAt = "granted_at"
+        case retentionDays = "retention_days"
+    }
+}
+
+struct PersonalizationConsentUpdate: Encodable {
+    let explicitConsent: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case explicitConsent = "explicit_consent"
+    }
+}
+
+struct RecommendationImpression: Encodable {
+    let eventId: UUID
+    let recipeId: UUID
+    let position: Int
+
+    enum CodingKeys: String, CodingKey {
+        case eventId = "event_id"
+        case recipeId = "recipe_id"
+        case position
+    }
+}
+
+struct RecommendationImpressionBatch: Encodable {
+    let slateId: UUID
+    let impressions: [RecommendationImpression]
+
+    enum CodingKeys: String, CodingKey {
+        case slateId = "slate_id"
+        case impressions
+    }
+}
+
+private struct RecommendationImpressionBatchResponse: Decodable {
+    let received: Int
+}
+
 struct SeasonalProduce: Codable, Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
@@ -304,6 +386,24 @@ private struct PasswordResetConfirmRequest: Encodable {
     enum CodingKeys: String, CodingKey {
         case resetToken = "reset_token"
         case newPassword = "new_password"
+    }
+}
+
+struct CurrentPasswordRequest: Encodable {
+    let currentPassword: String
+
+    enum CodingKeys: String, CodingKey {
+        case currentPassword = "current_password"
+    }
+}
+
+struct AccountDeletionRequest: Encodable {
+    let currentPassword: String
+    let confirmation: String
+
+    enum CodingKeys: String, CodingKey {
+        case currentPassword = "current_password"
+        case confirmation
     }
 }
 
@@ -482,6 +582,35 @@ struct AuthenticationClient: Sendable {
         return try await send(request)
     }
 
+    func exportUserData(
+        accessToken: String,
+        currentPassword: String
+    ) async throws -> Data {
+        var request = request(path: "users/me/data-export", method: "POST")
+        authorize(&request, accessToken: accessToken)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(
+            CurrentPasswordRequest(currentPassword: currentPassword)
+        )
+        return try await sendData(request)
+    }
+
+    func deleteAccount(
+        accessToken: String,
+        currentPassword: String,
+        confirmation: String
+    ) async throws {
+        let _: EmptyResponse = try await sendAuthorizedJSON(
+            path: "users/me",
+            method: "DELETE",
+            accessToken: accessToken,
+            payload: AccountDeletionRequest(
+                currentPassword: currentPassword,
+                confirmation: confirmation
+            )
+        )
+    }
+
     func refresh(refreshToken: String) async throws -> TokenResponse {
         try await sendJSON(
             path: "auth/refresh",
@@ -593,6 +722,62 @@ struct AuthenticationClient: Sendable {
 
     func completeOnboarding(accessToken: String) async throws -> OnboardingProfile {
         var request = request(path: "me/onboarding/complete", method: "POST")
+        authorize(&request, accessToken: accessToken)
+        return try await send(request)
+    }
+
+    func personalizationConsent(accessToken: String) async throws -> PersonalizationConsent {
+        var request = request(path: "me/recommendations/consent", method: "GET")
+        authorize(&request, accessToken: accessToken)
+        return try await send(request)
+    }
+
+    func grantPersonalizationConsent(
+        accessToken: String
+    ) async throws -> PersonalizationConsent {
+        try await sendAuthorizedJSON(
+            path: "me/recommendations/consent",
+            method: "PUT",
+            accessToken: accessToken,
+            payload: PersonalizationConsentUpdate(explicitConsent: true)
+        )
+    }
+
+    func withdrawPersonalizationConsent(accessToken: String) async throws {
+        var request = request(path: "me/recommendations/consent", method: "DELETE")
+        authorize(&request, accessToken: accessToken)
+        let _: EmptyResponse = try await send(request)
+    }
+
+    func recordRecommendationImpressions(
+        accessToken: String,
+        payload: RecommendationImpressionBatch
+    ) async throws {
+        let _: RecommendationImpressionBatchResponse = try await sendAuthorizedJSON(
+            path: "me/recommendations/impressions",
+            method: "POST",
+            accessToken: accessToken,
+            payload: payload
+        )
+    }
+
+    func recommendationFeed(
+        accessToken: String,
+        month: Int? = nil,
+        limit: Int = 24
+    ) async throws -> RecommendationFeed {
+        var queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+        if let month {
+            queryItems.append(URLQueryItem(name: "month", value: "\(month)"))
+        }
+
+        var request = request(
+            path: "me/recommendations/feed",
+            method: "GET",
+            queryItems: queryItems
+        )
         authorize(&request, accessToken: accessToken)
         return try await send(request)
     }
@@ -754,6 +939,14 @@ struct AuthenticationClient: Sendable {
     }
 
     private func send<Response: Decodable>(_ request: URLRequest) async throws -> Response {
+        let data = try await sendData(request)
+        if Response.self == EmptyResponse.self, data.isEmpty {
+            return EmptyResponse() as! Response
+        }
+        return try decoder.decode(Response.self, from: data)
+    }
+
+    private func sendData(_ request: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw AuthenticationError.invalidResponse
@@ -768,10 +961,7 @@ struct AuthenticationClient: Sendable {
             throw AuthenticationError.server(apiError?.detail.message ?? "Request failed (\(httpResponse.statusCode)).")
         }
 
-        if Response.self == EmptyResponse.self, data.isEmpty {
-            return EmptyResponse() as! Response
-        }
-        return try decoder.decode(Response.self, from: data)
+        return data
     }
 }
 
@@ -829,6 +1019,7 @@ private struct TokenStore {
 final class AuthenticationSession {
     private(set) var user: SeasonlyUser?
     private(set) var onboardingProfile: OnboardingProfile?
+    private(set) var personalizationConsent: PersonalizationConsent?
     private(set) var isRestoring = true
     private(set) var isLoading = false
     var errorMessage: String?
@@ -850,6 +1041,9 @@ final class AuthenticationSession {
         do {
             user = try await client.currentUser(accessToken: storedTokens.accessToken)
             onboardingProfile = try? await client.onboardingProfile(accessToken: storedTokens.accessToken)
+            personalizationConsent = try? await client.personalizationConsent(
+                accessToken: storedTokens.accessToken
+            )
         } catch AuthenticationError.unauthorized {
             do {
                 let refreshedTokens = try await client.refresh(refreshToken: storedTokens.refreshToken)
@@ -857,7 +1051,11 @@ final class AuthenticationSession {
                 tokens = refreshedTokens
                 user = try await client.currentUser(accessToken: refreshedTokens.accessToken)
                 onboardingProfile = try? await client.onboardingProfile(accessToken: refreshedTokens.accessToken)
+                personalizationConsent = try? await client.personalizationConsent(
+                    accessToken: refreshedTokens.accessToken
+                )
             } catch {
+                personalizationConsent = nil
                 tokens = nil
                 tokenStore.clear()
             }
@@ -915,6 +1113,86 @@ final class AuthenticationSession {
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadPersonalizationConsent() async -> Bool {
+        errorMessage = nil
+        do {
+            personalizationConsent = try await withAuthorizedAccess { accessToken in
+                try await client.personalizationConsent(accessToken: accessToken)
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func updatePersonalizationConsent(enabled: Bool) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            if enabled {
+                personalizationConsent = try await withAuthorizedAccess { accessToken in
+                    try await client.grantPersonalizationConsent(accessToken: accessToken)
+                }
+            } else {
+                try await withAuthorizedAccess { accessToken in
+                    try await client.withdrawPersonalizationConsent(accessToken: accessToken)
+                }
+                personalizationConsent = try await withAuthorizedAccess { accessToken in
+                    try await client.personalizationConsent(accessToken: accessToken)
+                }
+            }
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func exportUserData(currentPassword: String) async -> Data? {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            return try await withAuthorizedAccess { accessToken in
+                try await client.exportUserData(
+                    accessToken: accessToken,
+                    currentPassword: currentPassword
+                )
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func deleteAccount(
+        currentPassword: String,
+        confirmation: String
+    ) async -> Bool {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            try await withAuthorizedAccess { accessToken in
+                try await client.deleteAccount(
+                    accessToken: accessToken,
+                    currentPassword: currentPassword,
+                    confirmation: confirmation
+                )
+            }
+            clearLocalSession()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -1014,6 +1292,44 @@ final class AuthenticationSession {
                     accessToken: accessToken,
                     pageSize: pageSize,
                     area: area
+                )
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func fetchRecommendationFeed(limit: Int = 24) async -> SeasonalRecipeList? {
+        do {
+            return try await withAuthorizedAccess { accessToken in
+                let feed = try await client.recommendationFeed(
+                    accessToken: accessToken,
+                    limit: limit
+                )
+                if personalizationConsent?.active == true, !feed.items.isEmpty {
+                    let impressions = feed.items.enumerated().map { index, recipe in
+                        RecommendationImpression(
+                            eventId: UUID(),
+                            recipeId: recipe.id,
+                            position: index + 1
+                        )
+                    }
+                    try? await client.recordRecommendationImpressions(
+                        accessToken: accessToken,
+                        payload: RecommendationImpressionBatch(
+                            slateId: feed.slateId,
+                            impressions: impressions
+                        )
+                    )
+                }
+                return SeasonalRecipeList(
+                    countryCode: feed.countryCode,
+                    month: feed.month,
+                    page: 1,
+                    pageSize: limit,
+                    total: feed.total,
+                    items: feed.items
                 )
             }
         } catch {
@@ -1132,16 +1448,21 @@ final class AuthenticationSession {
 
     func logout() async {
         let refreshToken = tokens?.refreshToken
-        refreshTask?.cancel()
-        refreshTask = nil
-        user = nil
-        onboardingProfile = nil
-        tokens = nil
-        tokenStore.clear()
+        clearLocalSession()
 
         if let refreshToken {
             try? await client.logout(refreshToken: refreshToken)
         }
+    }
+
+    private func clearLocalSession() {
+        refreshTask?.cancel()
+        refreshTask = nil
+        user = nil
+        onboardingProfile = nil
+        personalizationConsent = nil
+        tokens = nil
+        tokenStore.clear()
     }
 
     private func performAuthentication(
@@ -1158,6 +1479,9 @@ final class AuthenticationSession {
             tokens = newTokens
             user = authenticatedUser
             onboardingProfile = try await client.onboardingProfile(accessToken: newTokens.accessToken)
+            personalizationConsent = try? await client.personalizationConsent(
+                accessToken: newTokens.accessToken
+            )
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -1216,6 +1540,7 @@ final class AuthenticationSession {
         } catch {
             user = nil
             onboardingProfile = nil
+            personalizationConsent = nil
             tokens = nil
             tokenStore.clear()
             throw error

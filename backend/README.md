@@ -67,6 +67,50 @@ curl "http://localhost:8001/api/v1/recipes/seasonal?month=6&category=Vegetarian"
 The profile country applies only to seasonal produce matching. Recipe `origin` is an independent,
 optional filter.
 
+Allergy-aware recommendations are fail-closed: recipes are returned only when every allergen
+declared by the user has a verified `does_not_contain` assessment. Unknown or missing assessments
+are excluded. See `docs/recommendation-safety.md` for the assessment policy and run the read-only
+readiness audit after importing data:
+
+```bash
+./scripts/uv run python backend/scripts/audit_recommendation_readiness.py
+```
+
+Identifiable recommendation interactions are stored only after separate, versioned
+personalization consent. They expire after 365 days, and withdrawal deletes them without removing
+the user's core favourites, history or planner data. Docker Compose runs the daily retention
+worker; a purge can also be run manually:
+
+```bash
+./scripts/uv run python backend/scripts/purge_expired_recommendation_events.py
+```
+
+See `docs/recommendation-events.md` for the event contract and privacy boundaries.
+
+Generate the isolated 12-persona, 500-user, 90-day synthetic training dataset from the actual
+imported recipe catalog with:
+
+```bash
+./scripts/uv run python backend/scripts/generate_synthetic_recommendation_data.py
+```
+
+Evaluate the offline popularity and seasonal TF-IDF baselines with the dedicated ML dependency
+group:
+
+```bash
+./scripts/uv run --group ml python backend/scripts/evaluate_recommendation_baselines.py
+```
+
+Tune, train and package the synthetic LightGBM LambdaRank prototype with:
+
+```bash
+./scripts/uv run --group ml python backend/scripts/train_recommendation_ranker.py
+```
+
+The generator creates a new checksummed run under `datasets/synthetic/runs/` and never overwrites
+an existing run. See `docs/synthetic-personas.md` for the persona definitions, temporal split and
+evaluation restrictions.
+
 ## Auth and User Endpoints
 
 Register with JSON:

@@ -32,7 +32,7 @@ async def list_seasonal_produce(
         )
         .order_by(Produce.type, Produce.name)
     )
-    produce = [_to_response(*row.tuple()) for row in result.all()]
+    produce = [_to_response(*row) for row in result.tuples().all()]
     return SeasonalProduceGroupedResponse(
         fruits=[item for item in produce if item.type == ProduceType.FRUIT],
         vegetables=[item for item in produce if item.type == ProduceType.VEGETABLE],

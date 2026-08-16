@@ -7,6 +7,19 @@ class AllergyProfileStatus(StrEnum):
     PROVIDED = "provided"
 
 
+class AllergenAssessmentStatus(StrEnum):
+    CONTAINS = "contains"
+    DOES_NOT_CONTAIN = "does_not_contain"
+    UNKNOWN = "unknown"
+
+
+class AllergenAssessmentMethod(StrEnum):
+    UNASSESSED = "unassessed"
+    RULES = "rules"
+    REVIEWED_DATASET = "reviewed_dataset"
+    MANUAL_REVIEW = "manual_review"
+
+
 class Allergen(StrEnum):
     CELERY = "celery"
     CEREALS_CONTAINING_GLUTEN = "cereals_containing_gluten"

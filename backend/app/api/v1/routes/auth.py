@@ -6,18 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import (
+from app.auth.email_delivery import deliver_password_reset
+from app.auth.password_reset import (
     PasswordResetTokenError,
-    RefreshTokenError,
-    create_access_token,
-    create_refresh_token,
     request_password_reset,
     reset_password,
+)
+from app.auth.rate_limit import enforce_auth_rate_limit
+from app.auth.refresh_tokens import (
+    RefreshTokenError,
+    create_refresh_token,
     revoke_refresh_token,
     rotate_refresh_token,
 )
-from app.auth.email_delivery import deliver_password_reset
-from app.auth.rate_limit import enforce_auth_rate_limit
+from app.auth.tokens import create_access_token
 from app.db.session import get_db_session
 from app.schemas.auth import (
     MessageResponse,
@@ -98,7 +100,7 @@ async def create_password_reset_request(
     payload: PasswordResetRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> MessageResponse:
-    issue = await request_password_reset(session, str(payload.email))
+    issue = await request_password_reset(session, payload.email)
     if issue is not None:
         try:
             _ = await deliver_password_reset(issue)

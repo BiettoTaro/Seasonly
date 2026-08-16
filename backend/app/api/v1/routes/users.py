@@ -9,13 +9,18 @@ from app.auth.rate_limit import enforce_auth_rate_limit
 from app.core.config import settings
 from app.db.session import get_db_session
 from app.models import User
+from app.schemas.privacy import AccountDeletionRequest, CurrentPasswordRequest, UserDataExport
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.users.geolocation import infer_coarse_location
+from app.users.privacy import (
+    InvalidCurrentPasswordError,
+    delete_user_data,
+    export_user_data,
+)
 from app.users.service import (
     DuplicateUserEmailError,
     apply_coarse_location,
     create_user,
-    delete_user,
     get_user,
     update_user,
 )
@@ -102,24 +107,68 @@ async def update_user_by_id(
     return await _update_user(session, current_user, payload)
 
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/me",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def delete_current_user(
+    payload: AccountDeletionRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
-    await delete_user(session, current_user)
+    await _delete_user_data(
+        session,
+        current_user,
+        current_password=payload.current_password,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
 async def delete_user_by_id(
     user_id: uuid.UUID,
+    payload: AccountDeletionRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     _require_same_user(user_id, current_user)
-    await delete_user(session, current_user)
+    await _delete_user_data(
+        session,
+        current_user,
+        current_password=payload.current_password,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/me/data-export",
+    response_model=UserDataExport,
+    dependencies=[Depends(enforce_auth_rate_limit)],
+)
+async def export_current_user_data(
+    payload: CurrentPasswordRequest,
+    response: Response,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[User, Depends(get_current_user)],
+) -> UserDataExport:
+    try:
+        data_export = await export_user_data(
+            session,
+            user=current_user,
+            current_password=payload.current_password,
+        )
+    except InvalidCurrentPasswordError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Disposition"] = (
+        'attachment; filename="seasonly-user-data-export.json"'
+    )
+    return data_export
 
 
 async def _update_user(session: AsyncSession, user: User, payload: UserUpdate) -> User:
@@ -135,3 +184,19 @@ def _require_same_user(user_id: uuid.UUID, current_user: User) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Cannot access another user",
         )
+
+
+async def _delete_user_data(
+    session: AsyncSession,
+    user: User,
+    *,
+    current_password: str,
+) -> None:
+    try:
+        await delete_user_data(
+            session,
+            user=user,
+            current_password=current_password,
+        )
+    except InvalidCurrentPasswordError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e

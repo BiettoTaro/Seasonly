@@ -1,7 +1,13 @@
 import re
 from collections.abc import Iterable
 
-from app.data.enums import Allergen
+from app.data.enums import (
+    Allergen,
+    AllergenAssessmentMethod,
+    AllergenAssessmentStatus,
+)
+
+ALLERGEN_RULESET_VERSION = "allergen-terms-v1"
 
 ALLERGEN_TERMS: dict[Allergen, set[str]] = {
     Allergen.CELERY: {"celery", "celeriac"},
@@ -102,6 +108,39 @@ def allergen_patterns(allergens: Iterable[Allergen]) -> list[str]:
     ]
 
 
+def assess_ingredient_names(
+    ingredient_names: Iterable[str],
+) -> dict[Allergen, tuple[AllergenAssessmentStatus, AllergenAssessmentMethod]]:
+    normalized_names = [" ".join(name.casefold().split()) for name in ingredient_names]
+    assessments: dict[
+        Allergen,
+        tuple[AllergenAssessmentStatus, AllergenAssessmentMethod],
+    ] = {}
+    for allergen in Allergen:
+        contains_allergen = any(
+            _ingredient_contains_term(ingredient_name, term)
+            for ingredient_name in normalized_names
+            for term in ALLERGEN_TERMS[allergen]
+        )
+        assessments[allergen] = (
+            (
+                AllergenAssessmentStatus.CONTAINS,
+                AllergenAssessmentMethod.RULES,
+            )
+            if contains_allergen
+            else (
+                AllergenAssessmentStatus.UNKNOWN,
+                AllergenAssessmentMethod.UNASSESSED,
+            )
+        )
+    return assessments
+
+
 def _word_pattern(term: str) -> str:
     escaped = re.escape(term).replace(r"\ ", r"\s+")
     return rf"(^|[^[:alnum:]]){escaped}([^[:alnum:]]|$)"
+
+
+def _ingredient_contains_term(ingredient_name: str, term: str) -> bool:
+    escaped = re.escape(term).replace(r"\ ", r"\s+")
+    return re.search(rf"(?<!\w){escaped}(?!\w)", ingredient_name) is not None

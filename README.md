@@ -1,8 +1,10 @@
 # Seasonly
 
-Seasonly is a final-year software engineering project for an iOS app backed by a FastAPI monolith and PostgreSQL database.
+Seasonly is a final-year software engineering project for an iOS app backed by a FastAPI monolith
+and PostgreSQL database.
 
-The app will focus on seasonal produce in Europe, recipe data, authentication, validation, and later recommendation features using machine learning.
+The app focuses on seasonal produce in Europe, recipe data, authentication, validation and a
+consent-aware TF-IDF recommendation feed.
 
 ## Repository Layout
 
@@ -87,6 +89,29 @@ set explicit trusted hosts, provide a unique 32+ character `AUTH_SECRET_KEY`, re
 database credentials, and configure SMTP password-reset delivery. Release iOS builds likewise
 require an HTTPS `SEASONLY_API_BASE_URL` build setting.
 
+The reviewed recommendation policy defaults to `RECOMMENDATION_RANKING_MODE=seasonal_tfidf_v1`.
+Operators can select `seasonal_only_v1` for an immediate safety-preserving rollback; unknown values
+stop application startup. The procedure and privacy-safe measurements are documented in
+`docs/recommendation-operations.md`.
+
+Current ML development remains synthetic-only. The planned brief private sessions are for
+formative usability and safety presentation, not model training or recommendation-effectiveness
+claims; see `docs/private-pilot-and-synthetic-ml.md`.
+
+The fully executed `notebooks/seasonly_ml_exploration.ipynb` presents the checksummed synthetic
+data, preprocessing controls, model formulas, visual comparisons and production model decision.
+It reads immutable evidence rather than retraining models. Start the optional notebook environment
+from the repository root with:
+
+```bash
+./scripts/uv run --group notebook jupyter lab
+```
+
+Authenticated users can download a versioned JSON copy of their stored Seasonly data or permanently
+delete their account from the iOS profile screen. Both actions require current-password
+reconfirmation, and deletion also requires an exact typed confirmation. Scope and limitations are
+documented in `docs/privacy-controls.md`.
+
 Apply database migrations before using persistence-backed endpoints. Docker Compose runs this as a
 separate one-shot `migrate` service before starting the API:
 
@@ -106,5 +131,5 @@ separate one-shot `migrate` service before starting the API:
 - Secure sign-up and login.
 - Pydantic request/response models.
 - PostgreSQL persistence.
-- Recommendation system with machine learning.
+- Consent-aware seasonal TF-IDF recommendation feed.
 - Optional Cloudflare Tunnel support for device testing.

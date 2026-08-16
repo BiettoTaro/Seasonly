@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.data.enums import (
     Allergen,
     AllergyProfileStatus,
+    ConsentType,
     CountryCode,
     CuisinePreferenceStatus,
     DietaryRule,
@@ -18,6 +19,7 @@ from app.data.enums import (
     ProteinPreference,
 )
 from app.models import (
+    ProduceSeason,
     Recipe,
     User,
     UserAllergen,
@@ -220,6 +222,13 @@ async def list_cuisine_areas(session: AsyncSession) -> list[str]:
     return [area for area in result.scalars().all() if area]
 
 
+async def list_countries_with_seasonal_data(
+    session: AsyncSession,
+) -> set[CountryCode]:
+    result = await session.execute(select(ProduceSeason.country_code).distinct())
+    return {CountryCode(country_code) for country_code in result.scalars().all()}
+
+
 def _touch_in_progress(profile: UserProfile) -> None:
     if profile.onboarding_status != OnboardingStatus.COMPLETED.value:
         profile.onboarding_status = OnboardingStatus.IN_PROGRESS.value
@@ -228,7 +237,7 @@ def _touch_in_progress(profile: UserProfile) -> None:
 
 def _ensure_allergy_consent(profile: UserProfile, user_id: uuid.UUID) -> None:
     has_active_consent = any(
-        consent.consent_type == "allergy_storage" and consent.withdrawn_at is None
+        consent.consent_type == ConsentType.ALLERGY_STORAGE.value and consent.withdrawn_at is None
         for consent in profile.consents
     )
     if has_active_consent:
@@ -237,7 +246,7 @@ def _ensure_allergy_consent(profile: UserProfile, user_id: uuid.UUID) -> None:
     profile.consents.append(
         UserConsent(
             user_id=user_id,
-            consent_type="allergy_storage",
+            consent_type=ConsentType.ALLERGY_STORAGE.value,
             notice_version=CURRENT_ALLERGY_CONSENT_VERSION,
             granted_at=utc_now(),
         )
@@ -247,7 +256,10 @@ def _ensure_allergy_consent(profile: UserProfile, user_id: uuid.UUID) -> None:
 def _withdraw_allergy_consents(profile: UserProfile) -> None:
     withdrawn_at = utc_now()
     for consent in profile.consents:
-        if consent.consent_type == "allergy_storage" and consent.withdrawn_at is None:
+        if (
+            consent.consent_type == ConsentType.ALLERGY_STORAGE.value
+            and consent.withdrawn_at is None
+        ):
             consent.withdrawn_at = withdrawn_at
 
 

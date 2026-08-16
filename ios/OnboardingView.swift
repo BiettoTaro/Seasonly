@@ -373,7 +373,7 @@ struct OnboardingView: View {
         locationSource = "device"
         locationDetector.detect { countryCode, regionCode in
             let normalizedCountryCode = normalizeDetectedCountryCode(countryCode)
-            guard countries.isEmpty || countries.contains(where: { $0.code == normalizedCountryCode }) else {
+            guard countries.isEmpty || countryHasSeasonalData(normalizedCountryCode) else {
                 let supportedCodes = countries.map(\.code).joined(separator: ", ")
                 if let localeCountry = supportedLocaleCountryCode() {
                     locationDetector.stopDetecting(
@@ -409,7 +409,7 @@ struct OnboardingView: View {
            selectedCountryCode == nil,
            let localeIdentifier = Locale.current.region?.identifier,
            let localeCountry = Optional(normalizeDetectedCountryCode(localeIdentifier)),
-           countries.contains(where: { $0.code == localeCountry }) {
+           countryHasSeasonalData(localeCountry) {
             selectedCountryCode = localeCountry
         }
         currentPage = .confirmLocation
@@ -418,7 +418,13 @@ struct OnboardingView: View {
     private func supportedLocaleCountryCode() -> String? {
         guard let localeIdentifier = Locale.current.region?.identifier else { return nil }
         let localeCountry = normalizeDetectedCountryCode(localeIdentifier)
-        return countries.contains(where: { $0.code == localeCountry }) ? localeCountry : nil
+        return countryHasSeasonalData(localeCountry) ? localeCountry : nil
+    }
+
+    private func countryHasSeasonalData(_ countryCode: String) -> Bool {
+        countries.contains {
+            $0.code == countryCode && $0.seasonalDataAvailable
+        }
     }
 
     private func normalizeDetectedCountryCode(_ value: String) -> String {
@@ -716,7 +722,10 @@ private struct ConfirmLocationPage: View {
             )) {
                 Text("Select country").tag("")
                 ForEach(countries) { country in
-                    Text(country.name).tag(country.code)
+                    Text(country.displayName)
+                        .foregroundStyle(country.seasonalDataAvailable ? .primary : .secondary)
+                        .tag(country.code)
+                        .disabled(!country.seasonalDataAvailable)
                 }
             }
             .pickerStyle(.menu)

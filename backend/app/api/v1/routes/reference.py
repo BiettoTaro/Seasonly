@@ -10,15 +10,25 @@ from app.schemas.onboarding import (
     CuisineReferenceResponse,
     EnumReferenceResponse,
 )
-from app.users.onboarding import list_cuisine_areas
+from app.users.onboarding import list_countries_with_seasonal_data, list_cuisine_areas
 
 router = APIRouter(prefix="/reference")
 
 
 @router.get("/countries", response_model=list[CountryReferenceResponse])
-async def read_countries() -> list[CountryReferenceResponse]:
+async def read_countries(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[CountryReferenceResponse]:
+    countries_with_data = await list_countries_with_seasonal_data(session)
     return [
-        CountryReferenceResponse(code=country, name=country.name.replace("_", " ").title())
+        CountryReferenceResponse(
+            code=country,
+            name=country.name.replace("_", " ").title(),
+            seasonal_data_available=country in countries_with_data,
+            availability_message=(
+                None if country in countries_with_data else "Seasonal data not available"
+            ),
+        )
         for country in CountryCode
     ]
 

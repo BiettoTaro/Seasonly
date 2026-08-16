@@ -7,15 +7,18 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.data_key import DataKey
+from app.data.enums import AllergenAssessmentMethod
 from app.models import (
     DataImportRun,
     Ingredient,
     Recipe,
+    RecipeAllergenAssessment,
     RecipeCategory,
     RecipeIngredient,
     RecipeTag,
     Tag,
 )
+from app.recipes.allergens import ALLERGEN_RULESET_VERSION, assess_ingredient_names
 from app.recipes.normalization import (
     MEALDB_PROVIDER,
     NormalizedCategory,
@@ -132,6 +135,7 @@ async def import_snapshot(
     _ = await session.execute(delete(RecipeTag).where(RecipeTag.recipe_id.in_(imported_recipe_ids)))
     await _insert_recipe_ingredients(session, snapshot["recipes"], recipe_ids, ingredient_ids)
     await _upsert_and_link_tags(session, snapshot["recipes"], recipe_ids)
+    await _upsert_recipe_allergen_assessments(session, snapshot["recipes"], recipe_ids, imported_at)
 
 
 async def _upsert_categories(
@@ -289,15 +293,14 @@ async def _upsert_and_link_tags(
     tag_ids = {
         normalized_name: tag_id
         for tag_id, normalized_name in (
-            row.tuple()
-            for row in (
-                await session.execute(
-                    select(Tag.id, Tag.normalized_name).where(
-                        Tag.normalized_name.in_(tags_by_normalized_name)
-                    )
+            await session.execute(
+                select(Tag.id, Tag.normalized_name).where(
+                    Tag.normalized_name.in_(tags_by_normalized_name)
                 )
-            ).all()
+            )
         )
+        .tuples()
+        .all()
     }
     links = [
         {
@@ -312,6 +315,52 @@ async def _upsert_and_link_tags(
             _ = await session.execute(insert(RecipeTag).values(batch))
 
 
+async def _upsert_recipe_allergen_assessments(
+    session: AsyncSession,
+    recipes: list[NormalizedRecipe],
+    recipe_ids: dict[str, uuid.UUID],
+    assessed_at: datetime,
+) -> None:
+    values: list[dict[str, object]] = []
+    for recipe in recipes:
+        assessments = assess_ingredient_names(
+            ingredient["ingredient_name_raw"] for ingredient in recipe["ingredients"]
+        )
+        for allergen, (assessment_status, assessment_method) in assessments.items():
+            values.append(
+                {
+                    "recipe_id": recipe_ids[recipe["provider_recipe_id"]],
+                    "allergen": allergen.value,
+                    "status": assessment_status.value,
+                    "method": assessment_method.value,
+                    "assessment_version": ALLERGEN_RULESET_VERSION,
+                    "assessed_at": assessed_at,
+                }
+            )
+
+    for batch in batches(values):
+        statement = insert(RecipeAllergenAssessment).values(batch)
+        statement = statement.on_conflict_do_update(
+            index_elements=[
+                RecipeAllergenAssessment.recipe_id,
+                RecipeAllergenAssessment.allergen,
+            ],
+            set_={
+                "status": statement.excluded.status,
+                "method": statement.excluded.method,
+                "assessment_version": statement.excluded.assessment_version,
+                "assessed_at": statement.excluded.assessed_at,
+            },
+            where=RecipeAllergenAssessment.method.in_(
+                {
+                    AllergenAssessmentMethod.UNASSESSED.value,
+                    AllergenAssessmentMethod.RULES.value,
+                }
+            ),
+        )
+        _ = await session.execute(statement)
+
+
 def batches[T](values: list[T], batch_size: int = INSERT_BATCH_SIZE) -> list[list[T]]:
     return [values[index : index + batch_size] for index in range(0, len(values), batch_size)]
 
@@ -322,10 +371,7 @@ async def _category_ids_by_normalized_name(session: AsyncSession) -> dict[str, u
             RecipeCategory.provider == MEALDB_PROVIDER
         )
     )
-    return {
-        normalize_name(name): category_id
-        for category_id, name in (row.tuple() for row in result.all())
-    }
+    return {normalize_name(name): category_id for category_id, name in result.tuples().all()}
 
 
 async def _ingredient_ids_by_normalized_name(session: AsyncSession) -> dict[str, uuid.UUID]:
@@ -335,8 +381,7 @@ async def _ingredient_ids_by_normalized_name(session: AsyncSession) -> dict[str,
         )
     )
     return {
-        normalized_name: ingredient_id
-        for ingredient_id, normalized_name in (row.tuple() for row in result.all())
+        normalized_name: ingredient_id for ingredient_id, normalized_name in result.tuples().all()
     }
 
 
@@ -345,6 +390,5 @@ async def _recipe_ids_by_provider_id(session: AsyncSession) -> dict[str, uuid.UU
         select(Recipe.id, Recipe.provider_recipe_id).where(Recipe.provider == MEALDB_PROVIDER)
     )
     return {
-        provider_recipe_id: recipe_id
-        for recipe_id, provider_recipe_id in (row.tuple() for row in result.all())
+        provider_recipe_id: recipe_id for recipe_id, provider_recipe_id in result.tuples().all()
     }

@@ -3,6 +3,8 @@ from typing import ClassVar
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.data.enums import RecommendationRankingStrategy
+
 
 class Settings(BaseSettings):
     model_config: ClassVar[SettingsConfigDict] = SettingsConfigDict(
@@ -42,6 +44,10 @@ class Settings(BaseSettings):
     recipes_base_url: str = "https://www.themealdb.com/api/json/v2/"
     recipes_request_timeout_seconds: float = 20.0
     recipes_request_retries: int = 2
+
+    recommendation_ranking_mode: RecommendationRankingStrategy = (
+        RecommendationRankingStrategy.SEASONAL_TFIDF_V1
+    )
 
     @model_validator(mode="after")
     def validate_security_settings(self) -> "Settings":

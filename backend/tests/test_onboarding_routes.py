@@ -171,11 +171,22 @@ def test_reference_routes_return_onboarding_options(
 ) -> None:
     app = create_app()
 
+    async def override_list_countries_with_seasonal_data(
+        session: object,
+    ) -> set[CountryCode]:
+        assert session is not None
+        return {CountryCode.UNITED_KINGDOM}
+
     async def override_list_cuisine_areas(session: object) -> list[str]:
         assert session is not None
         return ["British", "Italian"]
 
     app.dependency_overrides[get_db_session] = dummy_db_session
+    monkeypatch.setattr(
+        reference_routes,
+        "list_countries_with_seasonal_data",
+        override_list_countries_with_seasonal_data,
+    )
     monkeypatch.setattr(reference_routes, "list_cuisine_areas", override_list_cuisine_areas)
     client = TestClient(app)
 
@@ -185,7 +196,18 @@ def test_reference_routes_return_onboarding_options(
     proteins = client.get("/api/v1/reference/proteins")
 
     assert countries.status_code == 200
-    assert {"code": "GB", "name": "United Kingdom"} in countries.json()
+    assert {
+        "code": "GB",
+        "name": "United Kingdom",
+        "seasonal_data_available": True,
+        "availability_message": None,
+    } in countries.json()
+    assert {
+        "code": "SI",
+        "name": "Slovenia",
+        "seasonal_data_available": False,
+        "availability_message": "Seasonal data not available",
+    } in countries.json()
     assert cuisines.json() == [{"area": "British"}, {"area": "Italian"}]
     assert {"value": "peanuts", "label": "Peanuts"} in allergens.json()
     assert {"value": "chicken", "label": "Chicken"} in proteins.json()
