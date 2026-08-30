@@ -1,8 +1,63 @@
 import uuid
 from datetime import UTC, datetime
+from typing import cast
 
-from app.models import UserAllergen, UserDietaryRule, UserProfile, UserProteinPreference
+import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import User, UserAllergen, UserDietaryRule, UserProfile, UserProteinPreference
+from app.schemas.onboarding import CURRENT_TERMS_VERSION, PrivacyAcknowledge
 from app.users import onboarding as onboarding_service
+
+
+@pytest.mark.asyncio
+async def test_privacy_acknowledgement_records_terms_acceptance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user_id = uuid.uuid4()
+    user = User(
+        id=user_id,
+        email="user@example.com",
+        password_hash="unused",
+    )
+    profile = UserProfile(
+        user_id=user_id,
+        onboarding_status="not_started",
+        allergy_status="not_provided",
+        cuisine_preference_status="not_provided",
+    )
+
+    class SessionStub:
+        committed: bool = False
+
+        async def commit(self) -> None:
+            self.committed = True
+
+    async def return_profile(
+        session: AsyncSession,
+        requested_user_id: uuid.UUID,
+    ) -> UserProfile:
+        _ = session
+        assert requested_user_id == user_id
+        return profile
+
+    monkeypatch.setattr(onboarding_service, "_ensure_profile", return_profile)
+    session = SessionStub()
+
+    _ = await onboarding_service.acknowledge_privacy(
+        cast(AsyncSession, cast(object, session)),
+        user,
+        PrivacyAcknowledge(
+            acknowledged=True,
+            terms_accepted=True,
+            terms_version=CURRENT_TERMS_VERSION,
+        ),
+    )
+
+    assert session.committed is True
+    assert user.terms_version == CURRENT_TERMS_VERSION
+    assert user.terms_accepted_at is not None
+    assert profile.privacy_notice_acknowledged_at == user.terms_accepted_at
 
 
 def test_completion_allows_explicit_allergy_skip() -> None:

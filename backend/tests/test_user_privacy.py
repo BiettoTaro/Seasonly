@@ -34,6 +34,8 @@ def _user() -> User:
         id=uuid.UUID("10000000-0000-0000-0000-000000000001"),
         email="user@example.com",
         password_hash=hash_password(CURRENT_PASSWORD),
+        terms_version="2026-08-27",
+        terms_accepted_at=NOW,
         is_active=True,
         is_verified=False,
         created_at=NOW,
@@ -205,6 +207,8 @@ async def test_export_contains_user_owned_records_without_security_secrets(
 
     assert data_export.format_version == "seasonly-user-data-v1"
     assert data_export.profile is not None
+    assert data_export.account.terms_version == "2026-08-27"
+    assert data_export.account.terms_accepted_at == NOW
     assert data_export.profile.allergens == ["peanuts"]
     assert data_export.recipe_activity.favourites[0].recipe_name == "Seasonal pasta"
     assert len(data_export.recommendation_events) == 1

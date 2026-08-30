@@ -6,9 +6,8 @@ Explored against the configured paid V2 API on 10 June 2026. API keys are delibe
 - Terms of use: <https://www.themealdb.com/terms_of_use.php>
 - Configured URL shape: `{RECIPES_BASE_URL}/{RECIPES_API_KEY}/{endpoint}`
 
-The variables are present in the local environment, but `backend/app/core/config.py` does not yet
-declare `recipes_base_url` or `recipes_api_key`. Pydantic currently ignores those extra variables,
-so the eventual MealDB client must add them to `Settings` before using the shared config object.
+The shared settings now declare `recipes_base_url`, `recipes_api_key`, request timeout and retry
+values in `backend/app/core/config.py`. The importer and client use this validated configuration.
 
 The terms allow API content to be copied and modified when official endpoints are used. Paid API
 users must mention TheMealDB as the data source, stay within the rate limit, and respect third-party
@@ -62,7 +61,7 @@ Important data-quality behavior:
 - URLs and optional metadata can be null.
 - Ingredient names in recipes usually, but not always, exactly match ingredient catalog names.
 
-Observed catalog snapshot:
+Observed catalog snapshot from the 10 June 2026 exploration:
 
 | Property | Observed value |
 | --- | ---: |
@@ -78,6 +77,11 @@ Observed catalog snapshot:
 | Recipes with YouTube URL | 588 |
 | Recipes with source URL | 631 |
 | Recipes with `dateModified` | 363 |
+
+This is historical exploration evidence rather than the final catalogue count. The 24 August 2026
+local evidence audit found 734 active provider recipes fetched on 1 July 2026; the frozen
+persona-simulation-v2 evaluation intentionally retains its earlier 453-recipe snapshot. See
+`docs/evidence/SEA-25_DATASET_AUDIT.md` for the version boundary.
 
 The area list endpoint returned 195 area/country pairs, far more than are currently used by recipes.
 Examples of recipe ingredient names that do not exactly match the ingredient catalog are `carrot`,

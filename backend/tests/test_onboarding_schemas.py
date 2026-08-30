@@ -1,5 +1,5 @@
 import pytest
-from pydantic import ValidationError
+from pydantic_core import ValidationError
 
 from app.data.enums import (
     Allergen,
@@ -13,6 +13,7 @@ from app.schemas.onboarding import (
     AllergyUpdate,
     CuisineUpdate,
     LocationUpdate,
+    PrivacyAcknowledge,
     ProteinUpdate,
 )
 
@@ -26,6 +27,26 @@ def test_location_update_normalizes_region_code() -> None:
 
     assert payload.country_code == "GB"
     assert payload.region_code == "GB-ENG"
+
+
+def test_privacy_acknowledgement_requires_current_terms_acceptance() -> None:
+    with pytest.raises(ValidationError, match="terms_accepted"):
+        _ = PrivacyAcknowledge.model_validate(
+            {
+                "acknowledged": True,
+                "terms_accepted": False,
+                "terms_version": "2026-08-27",
+            }
+        )
+
+    with pytest.raises(ValidationError, match="terms_version"):
+        _ = PrivacyAcknowledge.model_validate(
+            {
+                "acknowledged": True,
+                "terms_accepted": True,
+                "terms_version": "outdated",
+            }
+        )
 
 
 def test_allergy_update_requires_consent_when_allergens_are_stored() -> None:

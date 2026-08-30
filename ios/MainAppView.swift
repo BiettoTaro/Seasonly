@@ -36,7 +36,11 @@ struct MainAppView: View {
     @State private var selectedRecipe: SeasonalRecipe?
     @State private var planningRecipe: SeasonalRecipe?
     @State private var isLoading = false
+    @State private var isFindingRecipe = false
+    @State private var isAutoPlanning = false
     @State private var recipeErrorMessage: String?
+    @State private var plannerStatusMessage: String?
+    @State private var plannerStatusIsError = false
     @State private var profilePresented = false
 
     private var countryCode: String? {
@@ -60,7 +64,9 @@ struct MainAppView: View {
                 favorites: favorites,
                 plannedMeals: plannedMeals,
                 isLoading: isLoading,
+                isFindingRecipe: isFindingRecipe,
                 errorMessage: recipeErrorMessage,
+                findRecipe: findRecommendedRecipe,
                 openRecipe: openRecipe,
                 toggleFavorite: toggleFavorite,
                 planRecipe: { planningRecipe = $0 },
@@ -85,6 +91,10 @@ struct MainAppView: View {
 
             PlannerTabView(
                 plannedMeals: $plannedMeals,
+                isAutoPlanning: isAutoPlanning,
+                statusMessage: plannerStatusMessage,
+                statusIsError: plannerStatusIsError,
+                autoPlanWeek: autoPlanWeek,
                 removePlannedMeal: removePlannedMeal,
                 openRecipe: openRecipe
             )
@@ -174,6 +184,85 @@ struct MainAppView: View {
         Task { await session.recordRecipeHistory(recipeId: recipe.id) }
     }
 
+    private func findRecommendedRecipe() {
+        guard !isFindingRecipe else { return }
+        Task {
+            isFindingRecipe = true
+            recipeErrorMessage = nil
+            defer { isFindingRecipe = false }
+
+            guard let recommendationList = await fetchPreferredSeasonalRecipes(pageSize: 24) else {
+                recipeErrorMessage = session.errorMessage ?? "A recommendation could not be loaded."
+                return
+            }
+            recipes = recommendationList.items
+            let excludedRecipeIds = Set(recentlyViewed.map(\.id))
+                .union(plannedMeals.map(\.recipe.id))
+            guard let recommendation = RecommendationSelectionRules.nextRecipe(
+                from: recommendationList.items,
+                excluding: excludedRecipeIds
+            ) else {
+                recipeErrorMessage = emptyRecipeMessage(for: recommendationList)
+                return
+            }
+            openRecipe(recommendation)
+        }
+    }
+
+    private func autoPlanWeek() {
+        guard !isAutoPlanning else { return }
+        Task {
+            isAutoPlanning = true
+            plannerStatusMessage = nil
+            plannerStatusIsError = false
+            session.errorMessage = nil
+            defer { isAutoPlanning = false }
+
+            guard let recommendationList = await fetchPreferredSeasonalRecipes(pageSize: 24) else {
+                plannerStatusMessage = session.errorMessage
+                    ?? "Model-ranked recipes could not be loaded."
+                plannerStatusIsError = true
+                return
+            }
+            recipes = recommendationList.items
+            let assignments = RecommendationSelectionRules.weeklyDinnerAssignments(
+                from: recommendationList.items,
+                preserving: plannedMeals
+            )
+            guard !assignments.isEmpty else {
+                plannerStatusMessage = Weekday.allCases.allSatisfy { day in
+                    plannedMeals.contains { $0.day == day && $0.meal == .dinner }
+                }
+                    ? "Every day already has a dinner planned."
+                    : "There are not enough new model-ranked recipes to fill the remaining days."
+                return
+            }
+
+            var addedCount = 0
+            for assignment in assignments {
+                guard let remoteMeal = await session.savePlannedMeal(
+                    recipeId: assignment.recipe.id,
+                    dayOfWeek: assignment.day.apiValue,
+                    mealSlot: MealSlot.dinner.apiValue
+                ), let plannedMeal = PlannedMeal(remote: remoteMeal) else {
+                    plannerStatusMessage = session.errorMessage
+                        ?? "The weekly plan could not be completed."
+                    plannerStatusIsError = true
+                    break
+                }
+                plannedMeals.removeAll { $0.id == plannedMeal.id }
+                plannedMeals.append(plannedMeal)
+                addedCount += 1
+            }
+
+            if addedCount > 0, !plannerStatusIsError {
+                plannerStatusMessage = addedCount == 7
+                    ? "Your model-ranked dinner plan is ready for the week."
+                    : "Added \(addedCount) model-ranked dinner\(addedCount == 1 ? "" : "s") while preserving your existing plan."
+            }
+        }
+    }
+
     private func toggleFavorite(_ recipe: SeasonalRecipe) {
         if favorites.contains(where: { $0.id == recipe.id }) {
             favorites.removeAll { $0.id == recipe.id }
@@ -207,6 +296,48 @@ private enum MainTab {
     case explore
     case planner
     case saved
+}
+
+struct PlannerRecommendationAssignment {
+    let day: Weekday
+    let recipe: SeasonalRecipe
+}
+
+enum RecommendationSelectionRules {
+    static func nextRecipe(
+        from rankedRecipes: [SeasonalRecipe],
+        excluding excludedRecipeIds: Set<UUID>
+    ) -> SeasonalRecipe? {
+        let alternative = rankedRecipes
+            .dropFirst()
+            .first { !excludedRecipeIds.contains($0.id) }
+        return alternative
+            ?? rankedRecipes.first { !excludedRecipeIds.contains($0.id) }
+            ?? rankedRecipes.first
+    }
+
+    static func weeklyDinnerAssignments(
+        from rankedRecipes: [SeasonalRecipe],
+        preserving plannedMeals: [PlannedMeal]
+    ) -> [PlannerRecommendationAssignment] {
+        let occupiedDays = Set(
+            plannedMeals
+                .filter { $0.meal == .dinner }
+                .map(\.day)
+        )
+        var usedRecipeIds = Set(plannedMeals.map(\.recipe.id))
+        var availableRecipes: [SeasonalRecipe] = []
+        for recipe in rankedRecipes where usedRecipeIds.insert(recipe.id).inserted {
+            availableRecipes.append(recipe)
+        }
+
+        return zip(
+            Weekday.allCases.filter { !occupiedDays.contains($0) },
+            availableRecipes
+        ).map { pair in
+            PlannerRecommendationAssignment(day: pair.0, recipe: pair.1)
+        }
+    }
 }
 
 struct PlannedMeal: Identifiable, Hashable {
@@ -297,7 +428,9 @@ private struct HomeTabView: View {
     let favorites: [SeasonalRecipe]
     let plannedMeals: [PlannedMeal]
     let isLoading: Bool
+    let isFindingRecipe: Bool
     let errorMessage: String?
+    let findRecipe: () -> Void
     let openRecipe: (SeasonalRecipe) -> Void
     let toggleFavorite: (SeasonalRecipe) -> Void
     let planRecipe: (SeasonalRecipe) -> Void
@@ -310,8 +443,9 @@ private struct HomeTabView: View {
                     HomeHero(
                         displayName: user.profile?.displayName ?? user.email.components(separatedBy: "@").first ?? "there",
                         regionLabel: regionLabel,
-                        primaryRecipe: recipes.first,
-                        openRecipe: openRecipe,
+                        canFindRecipe: !isLoading,
+                        isFindingRecipe: isFindingRecipe,
+                        findRecipe: findRecipe,
                         surpriseRecipe: recipes.dropFirst().randomElement().map { recipe in
                             { openRecipe(recipe) }
                         }
@@ -483,6 +617,10 @@ private enum ExploreProduceType: String, CaseIterable, Identifiable {
 
 private struct PlannerTabView: View {
     @Binding var plannedMeals: [PlannedMeal]
+    let isAutoPlanning: Bool
+    let statusMessage: String?
+    let statusIsError: Bool
+    let autoPlanWeek: () -> Void
     let removePlannedMeal: (PlannedMeal) -> Void
     let openRecipe: (SeasonalRecipe) -> Void
 
@@ -490,7 +628,12 @@ private struct PlannerTabView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    WeekPlannerHeader()
+                    WeekPlannerHeader(
+                        isAutoPlanning: isAutoPlanning,
+                        statusMessage: statusMessage,
+                        statusIsError: statusIsError,
+                        autoPlanWeek: autoPlanWeek
+                    )
 
                     ForEach(Weekday.allCases) { day in
                         PlannerDayCard(
@@ -575,8 +718,9 @@ private enum SavedScope: CaseIterable, Identifiable {
 private struct HomeHero: View {
     let displayName: String
     let regionLabel: String
-    let primaryRecipe: SeasonalRecipe?
-    let openRecipe: (SeasonalRecipe) -> Void
+    let canFindRecipe: Bool
+    let isFindingRecipe: Bool
+    let findRecipe: () -> Void
     let surpriseRecipe: (() -> Void)?
 
     var body: some View {
@@ -594,16 +738,21 @@ private struct HomeHero: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Button {
-                    if let primaryRecipe { openRecipe(primaryRecipe) }
-                } label: {
-                    Label("Find a recipe", systemImage: "sparkles")
+                Button(action: findRecipe) {
+                    Group {
+                        if isFindingRecipe {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Label("Find a recipe", systemImage: "sparkles")
+                        }
+                    }
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(SeasonlyColors.brown)
-                .disabled(primaryRecipe == nil)
+                .disabled(!canFindRecipe || isFindingRecipe)
 
                 Button {
                     surpriseRecipe?()
@@ -981,14 +1130,39 @@ private struct WeekPreview: View {
 }
 
 private struct WeekPlannerHeader: View {
+    let isAutoPlanning: Bool
+    let statusMessage: String?
+    let statusIsError: Bool
+    let autoPlanWeek: () -> Void
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("My week")
                 .font(.title2.weight(.bold))
                 .foregroundStyle(SeasonlyColors.ink)
-            Text("Add recipes from Home, Explore or Saved. Shopping lists and auto-planning can come later.")
+            Text("Fill every empty day with one model-ranked dinner. Existing meals are preserved.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            Button(action: autoPlanWeek) {
+                Group {
+                    if isAutoPlanning {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Label("Plan my week", systemImage: "sparkles")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(SeasonlyColors.brown)
+            .disabled(isAutoPlanning)
+
+            if let statusMessage {
+                StatusMessage(message: statusMessage, isError: statusIsError)
+            }
         }
     }
 }

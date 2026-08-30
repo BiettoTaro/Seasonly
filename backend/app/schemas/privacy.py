@@ -22,6 +22,8 @@ class UserDataExportAccount(BaseModel):
     is_verified: bool
     created_at: datetime
     updated_at: datetime
+    terms_version: str | None = None
+    terms_accepted_at: datetime | None = None
 
 
 class RankedPreferenceExport(BaseModel):

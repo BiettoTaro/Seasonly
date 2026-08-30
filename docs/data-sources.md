@@ -25,8 +25,9 @@ Initial backend key: `eu_seasonal_produce`.
 - Source: [Explore Seasonal Fruit and Vegetables in Europe](https://www.eufic.org/en/explore-seasonal-fruit-and-vegetables-in-europe)
 - Supporting references: [European national sources](https://www.eufic.org/en/page/european-national-sources-to-find-information-on-seasonal-fruit-and-vegetables)
 - Terms: [EUFIC terms of use](https://www.eufic.org/en/using-this-site/terms-of-use)
-- Coverage: European countries exposed by the tool; Seasonly extracts EU-27 countries plus the
-  United Kingdom.
+- Coverage: The 7 June 2026 extract contains 27 countries: 26 EU countries plus the United
+  Kingdom. Every included country has rows for all 12 months, but Slovenia has no extracted rows
+  and country-level row volumes are uneven. See `docs/evidence/SEA-25_DATASET_AUDIT.md`.
 - Format: JavaScript data rendered by an interactive web tool.
 - Refresh frequency: Not stated.
 - Licence and redistribution: EUFIC's terms allow use and dissemination only under conditions
@@ -37,8 +38,10 @@ Initial backend key: `eu_seasonal_produce`.
 - Usage: Treat the data as best available seasonal guidance, not absolute truth. Full raw and
   processed extracts are stored locally in gitignored directories for non-commercial academic
   prototyping only.
-- Release requirement: Obtain written permission from EUFIC or replace this source with an openly
-  licensed dataset before public or commercial release.
+- MVP decision (24 August 2026): Seasonly is a non-production academic MVP and will not seek EUFIC
+  permission for this scope. The extract remains local and is not publicly redistributed. Any
+  future public or commercial continuation must obtain written permission or replace the source
+  with an openly licensed dataset.
 
 The committed `datasets/samples/seasonal_sample.csv` contains synthetic demonstration rows and is
 not extracted from EUFIC.

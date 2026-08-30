@@ -180,6 +180,8 @@ def _build_user_data_export(
             is_verified=user.is_verified,
             created_at=user.created_at,
             updated_at=user.updated_at,
+            terms_version=user.terms_version,
+            terms_accepted_at=user.terms_accepted_at,
         ),
         profile=_profile_export(profile) if profile is not None else None,
         consents=consents,
