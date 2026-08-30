@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Annotated, ClassVar, Self
+from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import (
     BaseModel,
@@ -24,7 +24,8 @@ from app.data.enums import (
     ProteinPreference,
 )
 
-CURRENT_PRIVACY_NOTICE_VERSION = "2026-06-26"
+CURRENT_PRIVACY_NOTICE_VERSION = "2026-08-27"
+CURRENT_TERMS_VERSION = "2026-08-27"
 CURRENT_ALLERGY_CONSENT_VERSION = "2026-06-26"
 
 RegionCode = Annotated[
@@ -43,6 +44,8 @@ class PrivacyAcknowledge(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     acknowledged: bool
+    terms_accepted: Literal[True]
+    terms_version: Literal["2026-08-27"]
 
     @model_validator(mode="after")
     def require_acknowledgement(self) -> Self:

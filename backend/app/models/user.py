@@ -15,6 +15,12 @@ def utc_now() -> datetime:
 
 class User(Base):
     __tablename__: str = "users"
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(
+            "(terms_version IS NULL) = (terms_accepted_at IS NULL)",
+            name="ck_users_terms_acceptance_complete",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -23,6 +29,8 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    terms_version: Mapped[str | None] = mapped_column(String(50))
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     is_verified: Mapped[bool] = mapped_column(default=False, nullable=False)

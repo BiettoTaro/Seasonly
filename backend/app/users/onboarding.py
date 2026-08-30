@@ -89,10 +89,12 @@ async def acknowledge_privacy(
     user: User,
     payload: PrivacyAcknowledge,
 ) -> OnboardingProfileResponse:
-    _ = payload
     profile = await _ensure_profile(session, user.id)
+    acknowledged_at = utc_now()
     profile.privacy_notice_version = CURRENT_PRIVACY_NOTICE_VERSION
-    profile.privacy_notice_acknowledged_at = utc_now()
+    profile.privacy_notice_acknowledged_at = acknowledged_at
+    user.terms_version = payload.terms_version
+    user.terms_accepted_at = acknowledged_at
     _touch_in_progress(profile)
     await session.commit()
     return await get_onboarding_profile(session, user)

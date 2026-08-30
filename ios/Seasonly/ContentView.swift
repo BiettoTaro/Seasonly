@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @State private var session = AuthenticationSession()
@@ -52,8 +53,7 @@ private struct AuthenticationView: View {
 
     private var emailError: String? {
         guard !email.isEmpty else { return "Email is required." }
-        let pattern = #"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"#
-        return email.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
+        return !AuthenticationFormRules.isValidEmail(email)
             ? "Enter a valid email address."
             : nil
     }
@@ -70,7 +70,12 @@ private struct AuthenticationView: View {
     }
 
     private var canSubmit: Bool {
-        emailError == nil && passwordError == nil && confirmationError == nil
+        AuthenticationFormRules.canSubmit(
+            email: email,
+            password: password,
+            confirmation: confirmation,
+            isRegistering: mode == .register
+        )
     }
 
     var body: some View {
@@ -95,7 +100,13 @@ private struct AuthenticationView: View {
 
                         if mode == .register {
                             AuthField(title: "Display name", error: nil) {
-                                TextField("Your name (optional)", text: $displayName)
+                                TextField(
+                                    text: $displayName,
+                                    prompt: Text("Your name (optional)").foregroundStyle(.secondary)
+                                ) {
+                                    Text("Display name")
+                                }
+                                    .foregroundStyle(SeasonlyColors.ink)
                                     .textContentType(.name)
                                     .textInputAutocapitalization(.words)
                             }
@@ -103,11 +114,7 @@ private struct AuthenticationView: View {
                         }
 
                         AuthField(title: "Email", error: hasAttemptedSubmit ? emailError : nil) {
-                            TextField("you@example.com", text: $email)
-                                .textContentType(.emailAddress)
-                                .keyboardType(.emailAddress)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
+                            EmailEntry(email: $email)
                         }
 
                         AuthField(title: "Password", error: hasAttemptedSubmit ? passwordError : nil) {
@@ -124,7 +131,13 @@ private struct AuthenticationView: View {
                                 title: "Confirm password",
                                 error: hasAttemptedSubmit ? confirmationError : nil
                             ) {
-                                SecureField("Confirm password", text: $confirmation)
+                                SecureField(
+                                    text: $confirmation,
+                                    prompt: Text("Confirm password").foregroundStyle(.secondary)
+                                ) {
+                                    Text("Confirm password")
+                                }
+                                    .foregroundStyle(SeasonlyColors.ink)
                                     .textContentType(.newPassword)
                             }
                             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -151,7 +164,8 @@ private struct AuthenticationView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(canSubmit ? SeasonlyColors.brown : .gray)
-                        .disabled(session.isLoading || (!canSubmit && hasAttemptedSubmit))
+                        .disabled(session.isLoading || !canSubmit)
+                        .accessibilityIdentifier(mode == .login ? "signInButton" : "createAccountButton")
 
                         if mode == .login {
                             Button("Forgot password?") {
@@ -222,8 +236,7 @@ private struct PasswordResetView: View {
 
     private var emailError: String? {
         guard !email.isEmpty else { return "Email is required." }
-        let pattern = #"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"#
-        return email.range(of: pattern, options: [.regularExpression, .caseInsensitive]) == nil
+        return !AuthenticationFormRules.isValidEmail(email)
             ? "Enter a valid email address."
             : nil
     }
@@ -241,11 +254,7 @@ private struct PasswordResetView: View {
 
                 if confirmationMessage == nil {
                     AuthField(title: "Email", error: hasAttemptedSubmit ? emailError : nil) {
-                        TextField("you@example.com", text: $email)
-                            .textContentType(.emailAddress)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                        EmailEntry(email: $email)
                     }
                 } else if !resetComplete {
                     Text("Check your email, then enter the one-time token and a new password.")
@@ -404,11 +413,22 @@ private struct PasswordEntry: View {
         HStack(spacing: 10) {
             Group {
                 if isVisible {
-                    TextField(placeholder, text: $password)
+                    TextField(
+                        text: $password,
+                        prompt: Text(placeholder).foregroundStyle(.secondary)
+                    ) {
+                        Text(placeholder)
+                    }
                 } else {
-                    SecureField(placeholder, text: $password)
+                    SecureField(
+                        text: $password,
+                        prompt: Text(placeholder).foregroundStyle(.secondary)
+                    ) {
+                        Text(placeholder)
+                    }
                 }
             }
+            .foregroundStyle(SeasonlyColors.ink)
             .textContentType(contentType)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -425,6 +445,81 @@ private struct PasswordEntry: View {
             .buttonStyle(.plain)
             .accessibilityLabel(isVisible ? "Hide password" : "Show password")
         }
+    }
+}
+
+private struct EmailEntry: UIViewRepresentable {
+    @Binding var email: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(email: $email)
+    }
+
+    func makeUIView(context: Context) -> UITextField {
+        let textField = UITextField()
+        textField.font = .preferredFont(forTextStyle: .body)
+        textField.textColor = UIColor(red: 0.22, green: 0.15, blue: 0.1, alpha: 1)
+        textField.tintColor = UIColor(red: 0.43, green: 0.25, blue: 0.14, alpha: 1)
+        textField.textContentType = .emailAddress
+        textField.keyboardType = .emailAddress
+        textField.autocapitalizationType = .none
+        textField.autocorrectionType = .no
+        textField.accessibilityLabel = "Email address"
+        textField.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.emailChanged(_:)),
+            for: .editingChanged
+        )
+        applyPlaceholder(to: textField)
+        return textField
+    }
+
+    func updateUIView(_ textField: UITextField, context: Context) {
+        context.coordinator.email = $email
+        if textField.text != email {
+            textField.text = email
+        }
+        applyPlaceholder(to: textField)
+    }
+
+    private func applyPlaceholder(to textField: UITextField) {
+        textField.attributedPlaceholder = NSAttributedString(
+            string: "you@example.com",
+            attributes: [.foregroundColor: UIColor.placeholderText]
+        )
+    }
+
+    final class Coordinator: NSObject {
+        var email: Binding<String>
+
+        init(email: Binding<String>) {
+            self.email = email
+        }
+
+        @objc func emailChanged(_ textField: UITextField) {
+            email.wrappedValue = textField.text ?? ""
+        }
+    }
+}
+
+enum AuthenticationFormRules {
+    static func isValidEmail(_ email: String) -> Bool {
+        let pattern = #"^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$"#
+        return email.range(
+            of: pattern,
+            options: [.regularExpression, .caseInsensitive]
+        ) != nil
+    }
+
+    static func canSubmit(
+        email: String,
+        password: String,
+        confirmation: String,
+        isRegistering: Bool
+    ) -> Bool {
+        guard isValidEmail(email), password.count >= 8 else { return false }
+        guard isRegistering else { return true }
+        return confirmation == password
     }
 }
 

@@ -48,6 +48,10 @@ def test_user_tables_are_configured() -> None:
     assert UserPasswordResetToken.__tablename__ == "user_password_reset_tokens"
     assert users_table.c.id.primary_key is True
     assert cast(object, users_table.c.email.unique) is True
+    assert {"terms_version", "terms_accepted_at"} <= set(users_table.c.keys())
+    assert {constraint.name for constraint in users_table.constraints} >= {
+        "ck_users_terms_acceptance_complete"
+    }
     assert user_profiles_table.c.user_id.primary_key is True
     assert next(iter(user_profiles_table.c.user_id.foreign_keys)).ondelete == "CASCADE"
     assert {

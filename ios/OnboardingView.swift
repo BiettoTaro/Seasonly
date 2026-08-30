@@ -24,6 +24,8 @@ struct OnboardingView: View {
     @State private var selectedProteins: [String] = []
     @State private var noticeMessage: String?
     @State private var hasLoadedReferences = false
+    @State private var hasAcknowledgedPrivacy = false
+    @State private var presentedLegalDocument: LegalDocument?
 
     private var visiblePages: [OnboardingPage] {
         var pages: [OnboardingPage] = [
@@ -57,7 +59,7 @@ struct OnboardingView: View {
     private var canContinue: Bool {
         switch currentPage {
         case .privacy:
-            return true
+            return hasAcknowledgedPrivacy
         case .locationMethod:
             return locationMethod != nil && !locationDetector.isDetecting
         case .confirmLocation:
@@ -113,6 +115,10 @@ struct OnboardingView: View {
         .onChange(of: session.onboardingProfile?.updatedAt) {
             hydrateFromProfile()
         }
+        .sheet(item: $presentedLegalDocument) { document in
+            LegalDocumentView(document: document)
+                .presentationDragIndicator(.visible)
+        }
     }
 
     private var header: some View {
@@ -159,7 +165,11 @@ struct OnboardingView: View {
     private var pageContent: some View {
         switch currentPage {
         case .privacy:
-            PrivacyPage()
+            PrivacyPage(
+                isAcknowledged: $hasAcknowledgedPrivacy,
+                showTermsOfUse: { presentedLegalDocument = .termsOfUse },
+                showPrivacyNotice: { presentedLegalDocument = .privacyNotice }
+            )
         case .locationMethod:
             LocationMethodPage(
                 selection: $locationMethod,
@@ -473,6 +483,8 @@ struct OnboardingView: View {
 
     private func hydrateFromProfile() {
         guard let profile = session.onboardingProfile else { return }
+        hasAcknowledgedPrivacy = profile.privacyNoticeAcknowledgedAt != nil
+            || hasAcknowledgedPrivacy
         selectedCountryCode = selectedCountryCode ?? profile.countryCode
         selectedRegionCode = selectedRegionCode ?? profile.regionCode
         locationSource = profile.locationSource ?? locationSource
@@ -535,7 +547,7 @@ private enum OnboardingPage: Hashable {
 
     var title: String {
         switch self {
-        case .privacy: "Privacy and data use"
+        case .privacy: "Terms and privacy"
         case .locationMethod: "Location method"
         case .confirmLocation: "Confirm location"
         case .diet: "Diet type"
@@ -627,10 +639,14 @@ private struct ChoiceOption: Identifiable, Hashable {
 }
 
 private struct PrivacyPage: View {
+    @Binding var isAcknowledged: Bool
+    let showTermsOfUse: () -> Void
+    let showPrivacyNotice: () -> Void
+
     var body: some View {
         PageIntro(
-            title: "Privacy and data use",
-            subtitle: "Seasonly uses only the information needed to filter recipes and recommend seasonal food."
+            title: "Terms and privacy",
+            subtitle: "Review the Terms of Use and Privacy Notice before continuing with Seasonly."
         )
 
         VStack(alignment: .leading, spacing: 14) {
@@ -639,9 +655,26 @@ private struct PrivacyPage: View {
             InfoRow(icon: "lock.shield", text: "Allergy details are stored only if you choose Yes and give explicit consent.")
         }
 
-        Link("Full privacy notice", destination: URL(string: "https://seasonly.app/privacy")!)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(SeasonlyColors.brown)
+        HStack(spacing: 18) {
+            Button("Terms of Use") {
+                showTermsOfUse()
+            }
+            Button("Privacy Notice") {
+                showPrivacyNotice()
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(SeasonlyColors.brown)
+
+        Toggle(isOn: $isAcknowledged) {
+            Text("I agree to the Terms of Use and acknowledge the Privacy Notice.")
+                .font(.subheadline)
+                .foregroundStyle(SeasonlyColors.ink)
+        }
+        .toggleStyle(CheckboxToggleStyle())
+        .accessibilityIdentifier("legalAcceptanceCheckbox")
+        .padding(14)
+        .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 

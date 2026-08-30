@@ -4,6 +4,20 @@ import Testing
 
 struct SeasonlyTests {
 
+    private func recipe(_ name: String, id: UUID = UUID()) -> SeasonalRecipe {
+        SeasonalRecipe(
+            id: id,
+            name: name,
+            category: "Main",
+            area: "Test",
+            countryOfOrigin: "GB",
+            thumbnailURL: nil,
+            instructions: "Cook it.",
+            matchedSeasonalProduce: [],
+            matchedSeasonalProduceCount: 0
+        )
+    }
+
     @Test func recommendationFeedDecodesServerSlateAndRankingMetadata() throws {
         let payload = """
         {
@@ -62,6 +76,94 @@ struct SeasonlyTests {
             String(decoding: deletePayload, as: UTF8.self)
                 == #"{"confirmation":"DELETE","current_password":"correct-password"}"#
         )
+    }
+
+    @Test func registrationRequiresValidFields() {
+        #expect(
+            AuthenticationFormRules.canSubmit(
+                email: "cook@example.com",
+                password: "password123",
+                confirmation: "password123",
+                isRegistering: true
+            )
+        )
+        #expect(
+            !AuthenticationFormRules.canSubmit(
+                email: "cook@example.com",
+                password: "password123",
+                confirmation: "different",
+                isRegistering: true
+            )
+        )
+    }
+
+    @Test func onboardingLegalPayloadIncludesCurrentTermsAcceptance() throws {
+        let payload = PrivacyAcknowledgeRequest(
+            acknowledged: true,
+            termsAccepted: true,
+            termsVersion: SeasonlyLegal.termsVersion
+        )
+        let data = try JSONEncoder().encode(payload)
+        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        #expect(json["acknowledged"] as? Bool == true)
+        #expect(json["terms_accepted"] as? Bool == true)
+        #expect(json["terms_version"] as? String == "2026-08-27")
+    }
+
+    @Test func legalDocumentsAreEmbeddedAndVersioned() {
+        #expect(LegalDocument.termsOfUse.sections.count >= 10)
+        #expect(LegalDocument.privacyNotice.sections.count >= 8)
+        #expect(LegalDocument.termsOfUse.version == SeasonlyLegal.termsVersion)
+        #expect(LegalDocument.privacyNotice.version == SeasonlyLegal.privacyNoticeVersion)
+    }
+
+    @Test func recipeFinderSkipsAlreadyUsedHigherRankedRecipes() throws {
+        let first = recipe("First ranked")
+        let second = recipe("Second ranked")
+
+        let freshSelection = try #require(
+            RecommendationSelectionRules.nextRecipe(
+                from: [first, second],
+                excluding: []
+            )
+        )
+        let selected = try #require(
+            RecommendationSelectionRules.nextRecipe(
+                from: [first, second],
+                excluding: [first.id]
+            )
+        )
+        let fallback = try #require(
+            RecommendationSelectionRules.nextRecipe(
+                from: [first, second],
+                excluding: [first.id, second.id]
+            )
+        )
+
+        #expect(freshSelection.id == second.id)
+        #expect(selected.id == second.id)
+        #expect(fallback.id == first.id)
+    }
+
+    @Test func weeklyPlannerPreservesDinnerAndUsesUniqueRankedRecipes() {
+        let existingRecipe = recipe("Already planned")
+        let tuesdayRecipe = recipe("Tuesday dinner")
+        let wednesdayRecipe = recipe("Wednesday dinner")
+        let existingMeal = PlannedMeal(
+            recipe: existingRecipe,
+            day: .monday,
+            meal: .dinner
+        )
+
+        let assignments = RecommendationSelectionRules.weeklyDinnerAssignments(
+            from: [existingRecipe, tuesdayRecipe, tuesdayRecipe, wednesdayRecipe],
+            preserving: [existingMeal]
+        )
+
+        #expect(assignments.map(\.day) == [.tuesday, .wednesday])
+        #expect(assignments.map(\.recipe.id) == [tuesdayRecipe.id, wednesdayRecipe.id])
+        #expect(Set(assignments.map(\.recipe.id)).count == assignments.count)
     }
 
 }

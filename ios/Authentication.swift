@@ -409,6 +409,14 @@ struct AccountDeletionRequest: Encodable {
 
 struct PrivacyAcknowledgeRequest: Encodable {
     let acknowledged: Bool
+    let termsAccepted: Bool
+    let termsVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case acknowledged
+        case termsAccepted = "terms_accepted"
+        case termsVersion = "terms_version"
+    }
 }
 
 struct LocationUpdateRequest: Encodable {
@@ -570,7 +578,11 @@ struct AuthenticationClient: Sendable {
         return try await send(request)
     }
 
-    func register(email: String, password: String, displayName: String) async throws -> SeasonlyUser {
+    func register(
+        email: String,
+        password: String,
+        displayName: String
+    ) async throws -> SeasonlyUser {
         let profile = displayName.isEmpty ? nil : RegistrationProfile(displayName: displayName)
         let payload = RegistrationRequest(email: email, password: password, profile: profile)
         return try await sendJSON(path: "users", method: "POST", payload: payload)
@@ -659,7 +671,11 @@ struct AuthenticationClient: Sendable {
             path: "me/onboarding/privacy",
             method: "PUT",
             accessToken: accessToken,
-            payload: PrivacyAcknowledgeRequest(acknowledged: true)
+            payload: PrivacyAcknowledgeRequest(
+                acknowledged: true,
+                termsAccepted: true,
+                termsVersion: SeasonlyLegal.termsVersion
+            )
         )
     }
 
@@ -1070,9 +1086,17 @@ final class AuthenticationSession {
         }
     }
 
-    func register(email: String, password: String, displayName: String) async -> Bool {
+    func register(
+        email: String,
+        password: String,
+        displayName: String
+    ) async -> Bool {
         await performAuthentication {
-            _ = try await client.register(email: email, password: password, displayName: displayName)
+            _ = try await client.register(
+                email: email,
+                password: password,
+                displayName: displayName
+            )
             return try await client.login(email: email, password: password)
         }
     }
